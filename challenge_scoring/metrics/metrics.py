@@ -431,7 +431,7 @@ def _auto_extract_VCs(streamlines, ref_bundles):
 
 def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, wm,
                                 save_segmented=False, save_IBs=False,
-                                save_VBs=False, 
+                                save_VBs=False,
                                 out_segmented_strl_dir='',
                                 base_out_segmented_strl='',
                                 ref_anat_fname=''):

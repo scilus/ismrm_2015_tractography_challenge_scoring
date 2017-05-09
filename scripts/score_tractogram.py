@@ -9,20 +9,12 @@ import logging
 import json
 
 #import tractometer.pipeline_helper as helper
-#from tractometer.pipeline_helper import mkdir
 # TODO change this is ugly
 import challenge_scoring.metrics.metrics as metrics
 from challenge_scoring.io.results import save_results
 from challenge_scoring.utils.attributes import get_attribs_for_file,\
                                                load_attribs
-
-
-# TODO move to utils
-def mkdir(folder):
-    if not os.path.isdir(folder):
-        os.makedirs(folder)
-
-    return os.path.abspath(folder) + "/"
+from challenge_scoring.utils.filenames import mkdir
 
 
 ###############
@@ -121,9 +113,10 @@ def main():
         out_dir = mkdir(out_dir + "/").replace("//", "/")
 
     #Launch main
-    masks_dir = base_dir + "/masks/"
+    masks_dir = os.path.join(base_dir, "masks")
     bundles_dir = os.path.join(base_dir, "bundles")
-    scores_dir = mkdir(out_dir + "/scores/")
+
+    scores_dir = mkdir(os.path.join(out_dir, "scores"))
     # TODO remove all pkl mentions
     scores_filename = scores_dir + tractogram.split('/')[-1][:-4] + ".pkl"
 
@@ -141,16 +134,18 @@ def main():
     tracts_attribs = get_attribs_for_file(attribs_file, os.path.basename(tractogram))
     basic_bundles_attribs = load_attribs(args.basic_bundles_attribs)
 
-    if not args.save_tracts:
-        scores = metrics.score_from_files(tractogram, masks_dir, bundles_dir,
-                                          tracts_attribs, basic_bundles_attribs)
-    else:
-        segments_dir = mkdir(out_dir + "/segmented/")
+    if args.save_tracts:
+        segments_dir = mkdir(os.path.join(out_dir, "segmented"))
         base_name = os.path.splitext(os.path.basename(tractogram))[0]
-        scores = metrics.score_from_files(tractogram, masks_dir, bundles_dir,
-                                          tracts_attribs, basic_bundles_attribs,
-                                          True, args.save_ib, args.save_vb,
-                                          segments_dir, base_name, isVerbose)
+    else:
+        segments_dir = ''
+        base_name = ''
+
+    scores = metrics.score_from_files(tractogram, masks_dir, bundles_dir,
+                                      tracts_attribs, basic_bundles_attribs,
+                                      args.save_tracts,
+                                      args.save_ib, args.save_vb,
+                                      segments_dir, base_name, isVerbose)
 
     if scores is not None:
         save_results(scores_filename[:-4] + '.json', scores)
