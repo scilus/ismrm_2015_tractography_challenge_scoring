@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
+
 import nibabel as nb
 import numpy as np
 from numpy import linalg
 from numpy.lib.index_tricks import c_
 import tractconverter as tc
+from tractconverter.formats.tck import TCK
 
 
 def _get_tracts_over_grid(tract_fname, ref_anat_fname, tract_attributes,
@@ -107,3 +110,35 @@ def save_tracts_tck_from_dipy_voxel_space(tract_outobj, ref_anat_fname,
                           index_to_world_affine)[:, :-1] for s in tracts]
 
     tract_outobj += transformed
+
+
+def save_valid_connections(extracted_vb_info, streamlines,
+                           segmented_out_dir, basename, ref_anat_fname,
+                           save_vbs=False, save_full_vc=False):
+
+    if not save_vbs and not save_full_vc:
+        return
+
+    full_vcs = []
+    for bundle_name, bundle_info in extracted_vb_info.iteritems():
+        if bundle_info['nb_streamlines'] > 0:
+            out_fname = os.path.join(segmented_out_dir, basename +
+                                     '_VB_{0}.tck'.format(bundle_name))
+
+            vc_strl = [streamlines[idx]
+                       for idx in bundle_info['streamlines_indices']]
+
+            if save_full_vc:
+                full_vcs.extend(vc_strl)
+
+            if save_vbs:
+                vb_f = TCK.create(out_fname)
+                save_tracts_tck_from_dipy_voxel_space(vb_f, ref_anat_fname, vc_strl)
+
+    if save_full_vc and len(full_vcs):
+        out_name = os.path.join(segmented_out_dir, basename + '_VC.tck')
+        tract_file = TCK.create(out_name)
+
+        save_tracts_tck_from_dipy_voxel_space(tract_file,
+                                              ref_anat_fname,
+                                              full_vcs)

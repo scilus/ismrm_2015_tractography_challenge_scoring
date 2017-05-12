@@ -62,8 +62,9 @@ def buildArgsParser():
                    metavar='OUT_DIR',  type=str,
                    help='directory where to send score files')
 
-    p.add_argument('--save_tracts', action='store_true',
-                   help='save the segmented streamlines')
+    p.add_argument('--save_full_vc', action='store_true',
+                   help='save one file containing all VCs')
+
     p.add_argument('--save_ib', action='store_true',
                    help='save IB independently.')
     p.add_argument('--save_vb', action='store_true',
@@ -127,14 +128,12 @@ def main():
             print "Skipping... {0}".format(scores_filename)
             return
 
-    if not args.save_tracts and (args.save_ib or args.save_vb):
-        parser.error("Cannot save IBs or VBs if save_tracts is not set.")
-
     # TODO support just giving the orientation attribute
     tracts_attribs = get_attribs_for_file(attribs_file, os.path.basename(tractogram))
     basic_bundles_attribs = load_attribs(args.basic_bundles_attribs)
 
-    if args.save_tracts:
+    # TODO remove files in out_dir segmented
+    if args.save_full_vc or args.save_ib or args.save_vb:
         segments_dir = mkdir(os.path.join(out_dir, "segmented"))
         base_name = os.path.splitext(os.path.basename(tractogram))[0]
     else:
@@ -143,7 +142,7 @@ def main():
 
     scores = metrics.score_from_files(tractogram, masks_dir, bundles_dir,
                                       tracts_attribs, basic_bundles_attribs,
-                                      args.save_tracts,
+                                      args.save_full_vc,
                                       args.save_ib, args.save_vb,
                                       segments_dir, base_name, isVerbose)
 

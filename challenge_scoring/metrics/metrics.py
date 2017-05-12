@@ -24,7 +24,8 @@ from dipy.tracking.vox2track import track_counts as streamlines_count
 # TODO check names
 from challenge_scoring import NB_POINTS_RESAMPLE
 from challenge_scoring.io.streamlines import get_tracts_voxel_space_for_dipy, \
-                                       save_tracts_tck_from_dipy_voxel_space
+                                       save_tracts_tck_from_dipy_voxel_space, \
+                                       save_valid_connections
 from challenge_scoring.metrics.invalid_connections import get_closest_roi_pairs_for_all_streamlines
 from challenge_scoring.metrics.valid_connections import auto_extract_VCs
 from challenge_scoring.utils.filenames import get_root_image_name
@@ -33,24 +34,9 @@ from challenge_scoring.utils.filenames import get_root_image_name
 #import filter_streamlines
 
 
-def _save_extracted_VBs(extracted_vb_info, streamlines,
-                        segmented_out_dir, basename, ref_anat_fname):
-
-    for bundle_name, bundle_info in extracted_vb_info.iteritems():
-        if bundle_info['nb_streamlines'] > 0:
-            out_fname = os.path.join(segmented_out_dir, basename +
-                                     '_VB_{0}.tck'.format(bundle_name))
-
-            vb_f = TCK.create(out_fname)
-
-            vc_strl = [streamlines[idx] for idx in bundle_info['streamlines_indices']]
-
-            save_tracts_tck_from_dipy_voxel_space(vb_f, ref_anat_fname, vc_strl)
-
-
 def score_from_files(filename, masks_dir, bundles_dir,
                      tracts_attribs, basic_bundles_attribs,
-                     save_segmented=False, save_IBs=False,
+                     save_full_vc=False, save_IBs=False,
                      save_VBs=False,
                      segmented_out_dir='', segmented_base_name='',
                      verbose=False):
@@ -130,7 +116,7 @@ def score_from_files(filename, masks_dir, bundles_dir,
     score_func = score_auto_extract_auto_IBs
 
     return score_func(streamlines_gen, bundles_masks, ref_bundles, ROIs, wm,
-                      save_segmented=save_segmented, save_IBs=save_IBs,
+                      save_full_vc=save_full_vc, save_IBs=save_IBs,
                       save_VBs=save_VBs,
                       out_segmented_strl_dir=segmented_out_dir,
                       base_out_segmented_strl=segmented_base_name,
@@ -141,7 +127,7 @@ def score_from_files(filename, masks_dir, bundles_dir,
 
 
 def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, wm,
-                                save_segmented=False, save_IBs=False,
+                                save_full_vc=False, save_IBs=False,
                                 save_VBs=False,
                                 out_segmented_strl_dir='',
                                 base_out_segmented_strl='',
@@ -179,12 +165,15 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
     # Load all streamlines, since streamlines is a generator.
     full_strl = [s for s in streamlines]
 
+    # Extract VCs and VBs
     VC_indices, found_vbs_info = auto_extract_VCs(full_strl, ref_bundles)
     VC = len(VC_indices)
+    print(save_VBs)
 
-    if save_VBs:
-        _save_extracted_VBs(found_vbs_info, full_strl, out_segmented_strl_dir,
-                            base_out_segmented_strl, ref_anat_fname)
+    if save_VBs or save_full_vc:
+        save_valid_connections(found_vbs_info, full_strl, out_segmented_strl_dir,
+                               base_out_segmented_strl, ref_anat_fname,
+                               save_vbs=save_VBs, save_full_vc=save_full_vc)
 
     # TODO might be readded
     # To keep track of streamlines that have been classified
@@ -264,7 +253,7 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
             else:
                 rejected_streamlines.append(candidate_ic_streamlines[clusters[c]['indices'][0]])
 
-        if save_segmented and save_IBs:
+        if save_IBs:
             for k, v in ib_pairs.iteritems():
                 out_strl = []
                 for c_idx in v:
@@ -278,7 +267,8 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
                 save_tracts_tck_from_dipy_voxel_space(ib_f, ref_anat_fname,
                                                       out_strl)
 
-    if len(rejected_streamlines) > 0 and save_segmented:
+    # TODO add argument
+    if len(rejected_streamlines) > 0:
         out_nc_fname = os.path.join(out_segmented_strl_dir,
                                     '{}_NC.tck'.format(base_out_segmented_strl))
         out_file = TCK.create(out_nc_fname)
