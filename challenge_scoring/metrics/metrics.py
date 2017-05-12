@@ -33,41 +33,6 @@ from challenge_scoring.utils.filenames import get_root_image_name
 #import filter_streamlines
 
 
-def _save_independant_IB(roi1, roi2, strl_chunk, chunk_it, chunk_size,
-                         IC_idx, segmented_out_dir, segmented_base_name,
-                         ref_anat_fname):
-    roi1_basename = os.path.basename(roi1.get_filename()).replace('.nii.gz', '')
-    roi2_basename = os.path.basename(roi2.get_filename()).replace('.nii.gz', '')
-    out_fname = os.path.join(segmented_out_dir, segmented_base_name + '_IB_{0}_{1}.tck'.format(roi1_basename, roi2_basename))
-
-    if not os.path.isfile(out_fname):
-        ib_f = TCK.create(out_fname)
-    else:
-        ib_f = TCK(out_fname)
-
-    ic_list = [v - (chunk_it * chunk_size) for v in IC_idx]
-    ic_strl = [strl_chunk[idx] for idx in ic_list]
-
-    save_tracts_tck_from_dipy_voxel_space(ib_f, ref_anat_fname, ic_strl)
-
-
-def _save_independent_VB(bundle_name, strl_chunk,
-                         VC_idx, segmented_out_dir, segmented_base_name,
-                         ref_anat_fname):
-    out_fname = os.path.join(segmented_out_dir, segmented_base_name +
-                             '_VB_{0}.tck'.format(bundle_name))
-
-    if not os.path.isfile(out_fname):
-        vb_f = TCK.create(out_fname)
-    else:
-        vb_f = TCK(out_fname)
-
-    # In this case, indices are already realted to chunk
-    vc_strl = [strl_chunk[idx] for idx in VC_idx]
-
-    save_tracts_tck_from_dipy_voxel_space(vb_f, ref_anat_fname, vc_strl)
-
-
 def _save_extracted_VBs(extracted_vb_info, streamlines,
                         segmented_out_dir, basename, ref_anat_fname):
 
