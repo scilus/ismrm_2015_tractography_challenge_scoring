@@ -26,7 +26,7 @@ from challenge_scoring import NB_POINTS_RESAMPLE
 from challenge_scoring.io.streamlines import get_tracts_voxel_space_for_dipy, \
                                        save_tracts_tck_from_dipy_voxel_space
 from challenge_scoring.metrics.invalid_connections import get_closest_roi_pairs_for_all_streamlines
-from challenge_scoring.recognition.vb import auto_extract_VCs
+from challenge_scoring.metrics.valid_connections import auto_extract_VCs
 from challenge_scoring.utils.filenames import get_root_image_name
 
 # TODO remove
