@@ -33,34 +33,6 @@ from challenge_scoring.utils.filenames import get_root_image_name
 #import filter_streamlines
 
 
-def _save_segmented_from_chunk(strl_chunk, chunk_it, chunk_size,
-                               VC_idx, IC_idx, VCWP_idx, NC_idx,
-                               out_seg_tcks, ref_anat_fname):
-    # We "unshift" the indices to be able to correctly fetch in the streamlines
-    vc_list = [v - (chunk_it * chunk_size) for v in VC_idx]
-    ic_list = [v - (chunk_it * chunk_size) for v in IC_idx]
-    nc_list = [v - (chunk_it * chunk_size) for v in NC_idx]
-    vcwp_list = [v - (chunk_it * chunk_size) for v in VCWP_idx]
-
-    try:
-        vc_strl = [strl_chunk[idx] for idx in vc_list]
-        ic_strl = [strl_chunk[idx] for idx in ic_list]
-        nc_strl = [strl_chunk[idx] for idx in nc_list]
-        vcwp_strl = [strl_chunk[idx] for idx in vcwp_list]
-    except IndexError as e:
-        print("Index error")
-        print("Idx val: {0}".format(idx))
-        print("vc_list len:{0}".format(len(vc_list)))
-        print("strl_chunk len: {0}".format(len(strl_chunk)))
-        print("chunk size:{0}".format(chunk_size))
-        raise IndexError("JLKJLKJ")
-
-    save_tracts_tck_from_dipy_voxel_space(out_seg_tcks['VC'], ref_anat_fname, vc_strl)
-    save_tracts_tck_from_dipy_voxel_space(out_seg_tcks['IC'], ref_anat_fname, ic_strl)
-    save_tracts_tck_from_dipy_voxel_space(out_seg_tcks['NC'], ref_anat_fname, nc_strl)
-    save_tracts_tck_from_dipy_voxel_space(out_seg_tcks['VCWP'], ref_anat_fname, vcwp_strl)
-
-
 def _save_independant_IB(roi1, roi2, strl_chunk, chunk_it, chunk_size,
                          IC_idx, segmented_out_dir, segmented_base_name,
                          ref_anat_fname):
