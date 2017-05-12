@@ -30,6 +30,7 @@ def score_from_files(filename, masks_dir, bundles_dir,
                      tracts_attribs, basic_bundles_attribs,
                      save_full_vc=False,
                      save_full_ic=False,
+                     save_full_nc=False,
                      save_IBs=False,
                      save_VBs=False,
                      segmented_out_dir='', segmented_base_name='',
@@ -112,6 +113,7 @@ def score_from_files(filename, masks_dir, bundles_dir,
     return score_func(streamlines_gen, bundles_masks, ref_bundles, ROIs, wm,
                       save_full_vc=save_full_vc,
                       save_full_ic=save_full_ic,
+                      save_full_nc=save_full_nc,
                       save_IBs=save_IBs,
                       save_VBs=save_VBs,
                       out_segmented_strl_dir=segmented_out_dir,
@@ -125,6 +127,7 @@ def score_from_files(filename, masks_dir, bundles_dir,
 def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, wm,
                                 save_full_vc=False,
                                 save_full_ic=False,
+                                save_full_nc=False,
                                 save_IBs=False,
                                 save_VBs=False,
                                 out_segmented_strl_dir='',
@@ -213,16 +216,17 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
 
         rejected_streamlines.extend(additional_rejected)
 
-    # TODO add argument
-    if len(rejected_streamlines) > 0:
+    if ic_counts != len(candidate_ic_strl_indices) - len(rejected_streamlines):
+        raise ValueError("Some streamlines were not correctly assigned to NC")
+
+    if len(rejected_streamlines) > 0 and save_full_nc:
         out_nc_fname = os.path.join(out_segmented_strl_dir,
                                     '{}_NC.tck'.format(base_out_segmented_strl))
         out_file = TCK.create(out_nc_fname)
         save_tracts_tck_from_dipy_voxel_space(out_file, ref_anat_fname,
                                               rejected_streamlines)
 
-    if ic_counts != len(candidate_ic_strl_indices) - len(rejected_streamlines):
-        raise ValueError("Some streamlines were not correctly assigned to NC")
+
 
     VC /= total_strl_count
     IC = (len(candidate_ic_strl_indices) - len(rejected_streamlines)) / total_strl_count
