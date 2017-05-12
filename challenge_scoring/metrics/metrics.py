@@ -26,113 +26,58 @@ from challenge_scoring.metrics.invalid_connections import group_and_assign_ibs
 from challenge_scoring.metrics.valid_connections import auto_extract_VCs
 
 
-def score_from_files(filename, masks_dir, bundles_dir,
-                     tracts_attribs, basic_bundles_attribs,
-                     save_full_vc=False,
-                     save_full_ic=False,
-                     save_full_nc=False,
-                     save_IBs=False,
-                     save_VBs=False,
-                     segmented_out_dir='', segmented_base_name='',
-                     verbose=False):
-    """
-    Computes all metrics in order to score a tractogram.
-
-    Given a ``tck`` file of streamlines and a folder containing masks,
-    compute the percent of: Valid Connections (VC), Invalid Connections (IC),
-    Valid Connections but Wrong Path (VCWP), No Connections (NC),
-    Average Bundle Coverage (ABC), Average ROIs Coverage (ARC),
-    coverage per bundles and coverage per ROIs. It also provides the number of:
-    Valid Bundles (VB), Invalid Bundles (IB) and streamlines per bundles.
-
-
-    Parameters
-    ------------
-    filename : str
-       name of a tracts file
-    masks_dir : str
-       name of the directory containing the masks
-    save_segmented : bool
-        if true, saves the segmented VC, IC, VCWP and NC
-
-    Returns
-    ---------
-    scores : dict
-        dictionnary containing a score for each metric
-    indices : dict
-        dictionnary containing the indices of streamlines composing VC, IC,
-        VCWP and NC
-
-    """
-    if verbose:
-        logging.basicConfig(level=logging.DEBUG)
-
-    rois_dir = os.path.join(masks_dir, "rois")
-    bundles_masks_dir = os.path.join(masks_dir, "bundles")
-    wm_file = os.path.join(masks_dir, "wm.nii.gz")
-
-    wm = nib.load(wm_file)
-    streamlines_gen = get_tracts_voxel_space_for_dipy(filename, wm_file, tracts_attribs)
-
-    ROIs = [nib.load(os.path.join(rois_dir, f)) for f in sorted(os.listdir(rois_dir))]
-    bundles_masks = [nib.load(os.path.join(bundles_masks_dir, f)) for f in sorted(os.listdir(bundles_masks_dir))]
-    ref_bundles = []
-
+def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
+                             gt_bundles_attribs, ref_anat_fname):
     # Ref bundles will contain {'name': 'name_of_the_bundle', 'threshold': thres_value,
     #                           'streamlines': list_of_streamlines}
+
     dummy_attribs = {'orientation': 'LPS'}
     qb = QuickBundles(20, metric=AveragePointwiseEuclideanMetric())
 
+    ref_bundles = []
+
     for bundle_idx, bundle_f in enumerate(sorted(os.listdir(bundles_dir))):
-        bundle_attribs = basic_bundles_attribs.get(os.path.basename(bundle_f))
+        bundle_name = os.path.splitext(os.path.basename(bundle_f))[0]
+
+        bundle_attribs = gt_bundles_attribs.get(os.path.basename(bundle_f))
         if bundle_attribs is None:
-            raise ValueError("Missing basic bundle attribs for {0}".format(bundle_f))
+            raise ValueError(
+                "Missing basic bundle attribs for {0}".format(bundle_f))
 
         # Already resample to avoid doing it for each iteration of chunking
         orig_strl = [s for s in get_tracts_voxel_space_for_dipy(
-                                os.path.join(bundles_dir, bundle_f),
-                                wm_file, dummy_attribs)]
+                        os.path.join(bundles_dir, bundle_f),
+                        ref_anat_fname, dummy_attribs)]
+
         resamp_bundle = set_number_of_points(orig_strl, NB_POINTS_RESAMPLE)
         resamp_bundle = [s.astype('f4') for s in resamp_bundle]
 
         bundle_cluster_map = qb.cluster(resamp_bundle)
         bundle_cluster_map.refdata = resamp_bundle
 
-        bundle_mask_inv = nib.Nifti1Image((1 - bundles_masks[bundle_idx].get_data()) * wm.get_data(),
-                                          bundles_masks[bundle_idx].get_affine())
+        bundle_mask = nib.load(os.path.join(bundles_masks_dir,
+                                            bundle_name + '.nii.gz'))
 
-        bundle_name, _ = os.path.splitext(os.path.basename(bundle_f))
         ref_bundles.append({'name': bundle_name,
                             'threshold': bundle_attribs['cluster_threshold'],
                             'cluster_map': bundle_cluster_map,
-                            'mask': bundles_masks[bundle_idx],
-                            'mask_inv': bundle_mask_inv})
+                            'mask': bundle_mask})
 
-    score_func = score_auto_extract_auto_IBs
-
-    return score_func(streamlines_gen, bundles_masks, ref_bundles, ROIs, wm,
-                      save_full_vc=save_full_vc,
-                      save_full_ic=save_full_ic,
-                      save_full_nc=save_full_nc,
-                      save_IBs=save_IBs,
-                      save_VBs=save_VBs,
-                      out_segmented_strl_dir=segmented_out_dir,
-                      base_out_segmented_strl=segmented_base_name,
-                      ref_anat_fname=wm_file)
+    return ref_bundles
 
 
-
-
-
-def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, wm,
-                                save_full_vc=False,
-                                save_full_ic=False,
-                                save_full_nc=False,
-                                save_IBs=False,
-                                save_VBs=False,
-                                out_segmented_strl_dir='',
-                                base_out_segmented_strl='',
-                                ref_anat_fname=''):
+def score_submission(streamlines_fname,
+                     tracts_attribs,
+                     base_data_dir,
+                     basic_bundles_attribs,
+                     save_full_vc=False,
+                     save_full_ic=False,
+                     save_full_nc=False,
+                     save_IBs=False,
+                     save_VBs=False,
+                     segmented_out_dir='',
+                     segmented_base_name='',
+                     verbose=False):
     """
     TODO document
     
@@ -169,18 +114,41 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
 
     """
 
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG)
+
+    # Prepare needed scoring data
+    logging.debug('Preparing GT data')
+    masks_dir = os.path.join(base_data_dir, "masks")
+    rois_dir = os.path.join(masks_dir, "rois")
+    bundles_dir = os.path.join(base_data_dir, "bundles")
+    bundles_masks_dir = os.path.join(masks_dir, "bundles")
+    ref_anat_fname = os.path.join(masks_dir, "wm.nii.gz")
+
+    ROIs = [nib.load(os.path.join(rois_dir, f))
+            for f in sorted(os.listdir(rois_dir))]
+
+    ref_bundles = _prepare_gt_bundles_info(bundles_dir,
+                                           bundles_masks_dir,
+                                           basic_bundles_attribs,
+                                           ref_anat_fname)
+
+
+    streamlines_gen = get_tracts_voxel_space_for_dipy(streamlines_fname,
+                                                      ref_anat_fname,
+                                                      tracts_attribs)
+
     # Load all streamlines, since streamlines is a generator.
-    full_strl = [s for s in streamlines]
+    full_strl = [s for s in streamlines_gen]
 
     # Extract VCs and VBs
     VC_indices, found_vbs_info = auto_extract_VCs(full_strl, ref_bundles)
     VC = len(VC_indices)
 
     if save_VBs or save_full_vc:
-        save_valid_connections(found_vbs_info, full_strl, out_segmented_strl_dir,
-                               base_out_segmented_strl, ref_anat_fname,
+        save_valid_connections(found_vbs_info, full_strl, segmented_out_dir,
+                               segmented_base_name, ref_anat_fname,
                                save_vbs=save_VBs, save_full_vc=save_full_vc)
-
 
     logging.debug("Starting IC, IB scoring")
 
@@ -210,8 +178,8 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
         additional_rejected, ic_counts, nb_ib = group_and_assign_ibs(
                                                    candidate_ic_streamlines,
                                                    ROIs, save_IBs, save_full_ic,
-                                                   out_segmented_strl_dir,
-                                                   base_out_segmented_strl,
+                                                   segmented_out_dir,
+                                                   segmented_base_name,
                                                    ref_anat_fname)
 
         rejected_streamlines.extend(additional_rejected)
@@ -220,8 +188,8 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
         raise ValueError("Some streamlines were not correctly assigned to NC")
 
     if len(rejected_streamlines) > 0 and save_full_nc:
-        out_nc_fname = os.path.join(out_segmented_strl_dir,
-                                    '{}_NC.tck'.format(base_out_segmented_strl))
+        out_nc_fname = os.path.join(segmented_out_dir,
+                                    '{}_NC.tck'.format(segmented_base_name))
         out_file = TCK.create(out_nc_fname)
         save_tracts_tck_from_dipy_voxel_space(out_file, ref_anat_fname,
                                               rejected_streamlines)

@@ -6,7 +6,6 @@ import argparse
 import os
 import pickle
 import logging
-import json
 
 # TODO change this is ugly
 import challenge_scoring.metrics.metrics as metrics
@@ -114,9 +113,6 @@ def main():
     if out_dir is not None:
         out_dir = mkdir(out_dir + "/").replace("//", "/")
 
-    #Launch main
-    masks_dir = os.path.join(base_dir, "masks")
-    bundles_dir = os.path.join(base_dir, "bundles")
 
     scores_dir = mkdir(os.path.join(out_dir, "scores"))
     # TODO remove all pkl mentions
@@ -142,8 +138,8 @@ def main():
         segments_dir = ''
         base_name = ''
 
-    scores = metrics.score_from_files(tractogram, masks_dir, bundles_dir,
-                                      tracts_attribs, basic_bundles_attribs,
+    scores = metrics.score_submission(tractogram, tracts_attribs,
+                                      base_dir, basic_bundles_attribs,
                                       args.save_full_vc,
                                       args.save_full_ic,
                                       args.save_full_nc,
