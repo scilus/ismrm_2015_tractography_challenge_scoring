@@ -83,25 +83,6 @@ def _save_extracted_VBs(extracted_vb_info, streamlines,
             save_tracts_tck_from_dipy_voxel_space(vb_f, ref_anat_fname, vc_strl)
 
 
-# TODO remove chunking info + step, since we are not chunking anymore for
-# this save
-def _save_independent_VCWP(bundle_name, strl_chunk, chunk_it, chunk_size,
-                           VCWP_idx, segmented_out_dir, segmented_base_name,
-                           ref_anat_fname):
-    out_fname = os.path.join(segmented_out_dir, segmented_base_name +
-                             '_VCWP_{0}.tck'.format(bundle_name))
-
-    if not os.path.isfile(out_fname):
-        vcwp_f = TCK.create(out_fname)
-    else:
-        vcwp_f = TCK(out_fname)
-
-    vcwp_list = [v - (chunk_it * chunk_size) for v in VCWP_idx]
-    vcwp_strl = [strl_chunk[idx] for idx in vcwp_list]
-
-    save_tracts_tck_from_dipy_voxel_space(vcwp_f, ref_anat_fname, vcwp_strl)
-
-
 def score_from_files(filename, masks_dir, bundles_dir,
                      tracts_attribs, basic_bundles_attribs,
                      save_segmented=False, save_IBs=False,
