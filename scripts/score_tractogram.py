@@ -15,19 +15,35 @@ from challenge_scoring.utils.attributes import get_attribs_for_file,\
 from challenge_scoring.utils.filenames import mkdir
 
 
-###############
-# Script part #
-###############
-DESCRIPTION = 'Scoring script for ISMRM tractography challenge.\n\n' \
-              'Dissociated from the basic scoring.py because the behaviors\n' \
-              'and prerequisite are not the same.\n' \
-              'Once behaviors are uniformized (if they ever are), we could merge.\n\n' \
-              'NB: bundle overlap and bundle overreach scores are only computed when\n' \
-              'algorithm 5 is used.'
+DESCRIPTION = """
+    Score a submission for the ISMRM 2015 tractography challenge.
+    
+    This is based on the ISMRM 2015 tractography challenge, see 
+    http://www.tractometer.org/ismrm_2015_challenge/
+    
+    This script scores a submission following the method presented in 
+    https://doi.org/10.1101/084137
+    
+    This method differs from the classical Tractometer approach 
+    (https://doi.org/10.1016/j.media.2013.03.009). Instead of only using 
+    masks to define the ground truth and classify streamlines in the 
+    submission, bundles are extracted using a bundle recognition technique.
+    
+    More details are provided in the documentation here: 
+    https://github.com/scilus/ismrm_2015_tractography_challenge_scoring
+    
+    The algorithm has 6 main steps:
+        1: extract all streamlines that are valid, which are classified as
+           Valid Connections (VC) making up Valid Bundles (VB).
+        2: remove streamlines shorter than an threshold based on the GT dataset
+        3: cluster the remaining streamlines
+        4: remove singletons
+        5: assign each cluster to the closest ROIs pair. Those make up the 
+           Invalid Connections (IC), grouped as Invalid Bundles (IB).
+        6: streamlines that are neither in VC nor IC are classified as 
+           No Connection (NC).
 
-# TODO updat description and say that algo is
-# 5: VC: auto_extract -> IC: length threshold -> QB -> ' +
-#                        'singleton removal -> nearest regions classification.
+"""
 
 
 def buildArgsParser():
@@ -147,6 +163,8 @@ def main():
                                       segments_dir, base_name, isVerbose)
 
     if scores is not None:
+        # TODO temp
+        pickle.dump(scores, open(scores_filename, 'wb'))
         save_results(scores_filename[:-4] + '.json', scores)
 
     if isVerbose:
