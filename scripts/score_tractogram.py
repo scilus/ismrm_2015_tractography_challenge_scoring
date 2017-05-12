@@ -8,7 +8,7 @@ import pickle
 import logging
 
 # TODO change this is ugly
-import challenge_scoring.metrics.metrics as metrics
+from challenge_scoring.metrics.scoring import score_submission
 from challenge_scoring.io.results import save_results
 from challenge_scoring.utils.attributes import get_attribs_for_file,\
                                                load_attribs
@@ -154,13 +154,13 @@ def main():
         segments_dir = ''
         base_name = ''
 
-    scores = metrics.score_submission(tractogram, tracts_attribs,
-                                      base_dir, basic_bundles_attribs,
-                                      args.save_full_vc,
-                                      args.save_full_ic,
-                                      args.save_full_nc,
-                                      args.save_ib, args.save_vb,
-                                      segments_dir, base_name, isVerbose)
+    scores = score_submission(tractogram, tracts_attribs,
+                              base_dir, basic_bundles_attribs,
+                              args.save_full_vc,
+                              args.save_full_ic,
+                              args.save_full_nc,
+                              args.save_ib, args.save_vb,
+                              segments_dir, base_name, isVerbose)
 
     if scores is not None:
         # TODO temp
