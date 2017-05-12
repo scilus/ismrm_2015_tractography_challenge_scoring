@@ -4,11 +4,9 @@
 from __future__ import division
 
 from collections import Counter
-from itertools import chain
 import logging
 import os
 import random
-from time import time
 
 import nibabel as nib
 import numpy as np
@@ -18,7 +16,6 @@ from dipy.tracking.streamline import set_number_of_points
 from dipy.segment.clustering import QuickBundles
 import dipy.segment.quickbundles as qb
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
-from dipy.tracking.distances import bundles_distances_mdf
 from dipy.tracking.metrics import length as slength
 
 from tractconverter.formats.tck import TCK
@@ -26,23 +23,16 @@ from tractconverter.formats.tck import TCK
 from dipy.tracking.vox2track import track_counts as streamlines_count
 
 # TODO check names
+from challenge_scoring import NB_POINTS_RESAMPLE
 from challenge_scoring.io.streamlines import get_tracts_voxel_space_for_dipy, \
                                        save_tracts_tck_from_dipy_voxel_space
 from challenge_scoring.metrics.invalid_connections import get_closest_roi_pairs_for_all_streamlines
 from challenge_scoring.metrics.bundle_coverage import compute_bundle_coverage_scores
+from challenge_scoring.recognition.vb import auto_extract
 from challenge_scoring.utils.filenames import get_root_image_name
 
 # TODO remove
 #import filter_streamlines
-
-
-def _create_segmented_strl_files(out_dir, base_name):
-    vc_f = TCK.create(os.path.join(out_dir, base_name + '_VC.tck'))
-    ic_f = TCK.create(os.path.join(out_dir, base_name + '_IC.tck'))
-    nc_f = TCK.create(os.path.join(out_dir, base_name + '_NC.tck'))
-    vcwp_f = TCK.create(os.path.join(out_dir, base_name + '_VCWP.tck'))
-
-    return {'VC': vc_f, 'IC': ic_f, 'NC': nc_f, 'VCWP': vcwp_f}
 
 
 def _save_segmented_from_chunk(strl_chunk, chunk_it, chunk_size,
@@ -142,87 +132,6 @@ def _save_independent_VCWP(bundle_name, strl_chunk, chunk_it, chunk_size,
     save_tracts_tck_from_dipy_voxel_space(vcwp_f, ref_anat_fname, vcwp_strl)
 
 
-NB_POINTS_RESAMPLE = 12
-
-# From Max and Elef
-# TODO after re-run: clean this
-def auto_extract(model_cluster_map, submission_cluster_map,
-                 number_pts_per_str=NB_POINTS_RESAMPLE,
-                 close_centroids_thr=20,
-                 clean_thr=7.,
-                 disp=False, verbose=False):
-
-    if verbose:
-        print('# Centroids of model bundle')
-
-    t0 = time()
-
-    model_centroids = model_cluster_map.centroids
-
-    if verbose:
-        print('Duration %f ' % (time() - t0, ))
-
-    if verbose:
-        print('# Calculate centroids of moved_streamlines')
-
-    t = time()
-
-    if verbose:
-        print('Duration %f ' % (time() - t, ))
-
-    if verbose:
-        print('# Find centroids which are close to the model_centroids')
-
-    t = time()
-
-    centroid_matrix = bundles_distances_mdf(model_centroids,
-                                            submission_cluster_map.centroids)
-
-    centroid_matrix[centroid_matrix > close_centroids_thr] = np.inf
-    mins = np.min(centroid_matrix, axis=0)
-    close_clusters = [submission_cluster_map[i] for i in np.where(mins != np.inf)[0]]
-    close_indices_inter = [submission_cluster_map[i].indices for i in np.where(mins != np.inf)[0]]
-    close_indices = list(chain.from_iterable(close_indices_inter))
-
-    close_streamlines = list(chain(*close_clusters))
-
-
-    if verbose:
-        print('Duration %f ' % (time() - t, ))
-
-    closer_streamlines = close_streamlines
-    #matrix = np.eye(4)
-
-    if verbose:
-        print('# Remove streamlines which are a bit far')
-
-    t = time()
-
-    rcloser_streamlines = set_number_of_points(closer_streamlines, number_pts_per_str)
-
-    clean_matrix = bundles_distances_mdf(model_cluster_map.refdata, rcloser_streamlines)
-
-    clean_matrix[clean_matrix > clean_thr] = np.inf
-
-    mins = np.min(clean_matrix, axis=0)
-    #close_clusters_clean = [closer_streamlines[i]
-    #                        for i in np.where(mins != np.inf)[0]]
-
-    clean_indices = [i for i in np.where(mins != np.inf)[0]]
-
-    # Clean indices refer to the streamlines in closer_streamlines,
-    # which are the same as the close_streamlines. Each close_streamline
-    # has a related element in close_indices, for which the value
-    # is the index of the original streamline in the moved_streamlines.
-    final_selected_indices = [close_indices[idx] for idx in clean_indices]
-
-    if verbose:
-        print('Duration %f ' % (time() - t, ))
-
-    #return close_clusters_clean, final_selected_indices
-    return final_selected_indices
-
-
 def score_from_files(filename, masks_dir, bundles_dir,
                      tracts_attribs, basic_bundles_attribs,
                      save_segmented=False, save_IBs=False,
@@ -261,15 +170,15 @@ def score_from_files(filename, masks_dir, bundles_dir,
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
 
-    rois_dir = masks_dir + "rois/"
-    bundles_masks_dir = masks_dir + "bundles/"
-    wm_file = masks_dir + "wm.nii.gz"
+    rois_dir = os.path.join(masks_dir, "rois")
+    bundles_masks_dir = os.path.join(masks_dir, "bundles")
+    wm_file = os.path.join(masks_dir, "wm.nii.gz")
 
     wm = nib.load(wm_file)
     streamlines_gen = get_tracts_voxel_space_for_dipy(filename, wm_file, tracts_attribs)
 
-    ROIs = [nib.load(rois_dir + f) for f in sorted(os.listdir(rois_dir))]
-    bundles_masks = [nib.load(bundles_masks_dir + f) for f in sorted(os.listdir(bundles_masks_dir))]
+    ROIs = [nib.load(os.path.join(rois_dir, f)) for f in sorted(os.listdir(rois_dir))]
+    bundles_masks = [nib.load(os.path.join(bundles_masks_dir, f)) for f in sorted(os.listdir(bundles_masks_dir))]
     ref_bundles = []
 
     # Ref bundles will contain {'name': 'name_of_the_bundle', 'threshold': thres_value,
