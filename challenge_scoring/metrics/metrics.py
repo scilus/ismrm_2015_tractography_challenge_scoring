@@ -10,7 +10,6 @@ import random
 
 import nibabel as nib
 import numpy as np
-from nibabel.streamlines import Tractogram
 
 from dipy.tracking.streamline import set_number_of_points
 from dipy.segment.clustering import QuickBundles
@@ -27,8 +26,7 @@ from challenge_scoring import NB_POINTS_RESAMPLE
 from challenge_scoring.io.streamlines import get_tracts_voxel_space_for_dipy, \
                                        save_tracts_tck_from_dipy_voxel_space
 from challenge_scoring.metrics.invalid_connections import get_closest_roi_pairs_for_all_streamlines
-from challenge_scoring.metrics.bundle_coverage import compute_bundle_coverage_scores
-from challenge_scoring.recognition.vb import auto_extract
+from challenge_scoring.recognition.vb import auto_extract_VCs
 from challenge_scoring.utils.filenames import get_root_image_name
 
 # TODO remove
@@ -221,121 +219,7 @@ def score_from_files(filename, masks_dir, bundles_dir,
                       ref_anat_fname=wm_file)
 
 
-def _auto_extract_VCs(streamlines, ref_bundles):
-    # Streamlines = list of all streamlines
 
-    # TODO check what is neede
-    VC = 0
-    VC_idx = set()
-
-    found_vbs_info = {}
-    for bundle in ref_bundles:
-        found_vbs_info[bundle['name']] = {'nb_streamlines': 0,
-                                          'streamlines_indices': set()}
-
-    # TODO probably not needed
-    already_assigned_streamlines_idx = set()
-
-    # Need to bookkeep because we chunk for big datasets
-    processed_strl_count = 0
-    chunk_size = 5000
-    chunk_it = 0
-
-    nb_bundles = len(ref_bundles)
-    bundles_found = [False] * nb_bundles
-    #bundles_potential_VCWP = [set()] * nb_bundles
-
-    logging.debug("Starting scoring VCs")
-
-    qb = QuickBundles(threshold=20, metric=AveragePointwiseEuclideanMetric())
-
-    # Start loop here for big datasets
-    while processed_strl_count < len(streamlines):
-        logging.debug("Starting chunk: {0}".format(chunk_it))
-
-        strl_chunk = streamlines[chunk_it * chunk_size: (chunk_it + 1) * chunk_size]
-
-        processed_strl_count += len(strl_chunk)
-        cur_chunk_VC_idx, cur_chunk_IC_idx, cur_chunk_VCWP_idx = set(), set(), set()
-
-        # Already resample and run quickbundles on the submission chunk,
-        # to avoid doing it at every call of auto_extract
-        rstreamlines = set_number_of_points(strl_chunk, NB_POINTS_RESAMPLE)
-
-        # qb.cluster had problem with f8
-        rstreamlines = [s.astype('f4') for s in rstreamlines]
-
-        chunk_cluster_map = qb.cluster(rstreamlines)
-        chunk_cluster_map.refdata = strl_chunk
-
-        logging.debug("Starting VC identification through auto_extract")
-        for bundle_idx, ref_bundle in enumerate(ref_bundles):
-            # The selected indices are from [0, len(strl_chunk)]
-            selected_streamlines_indices = auto_extract(ref_bundle['cluster_map'],
-                                                        chunk_cluster_map,
-                                                        clean_thr=ref_bundle['threshold'])
-            # Remove duplicates, when streamlines are assigned to multiple VBs.
-            # TODO better handling of this case
-            selected_streamlines_indices = set(selected_streamlines_indices) - \
-                                           cur_chunk_VC_idx
-            cur_chunk_VC_idx |= selected_streamlines_indices
-
-            nb_selected_streamlines = len(selected_streamlines_indices)
-
-            if nb_selected_streamlines:
-                bundles_found[bundle_idx] = True
-                VC += nb_selected_streamlines
-
-                # Shift indices to match the real number of streamlines
-                global_select_strl_indices = set([v + chunk_it * chunk_size
-                                                 for v in selected_streamlines_indices])
-                vb_info = found_vbs_info.get(ref_bundle['name'])
-                vb_info['nb_streamlines'] += nb_selected_streamlines
-                vb_info['streamlines_indices'] |= global_select_strl_indices
-
-                VC_idx |= global_select_strl_indices
-                already_assigned_streamlines_idx |= global_select_strl_indices
-            else:
-                global_select_strl_indices = set()
-
-
-            # TODO move this to VCWP assignment external
-            # Get bundle end ROIs.
-            #ROI_1 = ROIs[bundle_idx * 2]
-            #ROI_2 = ROIs[bundle_idx * 2 + 1]
-
-            # Get indices between both endpoints
-            #filtered_streamlines_idx = set(filter_streamlines.get_streamlines_idx_between_ROIs_from_streamlines_idx_per_voxel(tes, ROI_1, ROI_2))
-
-            # Potential Valid Connections Wrong Path
-            # Retrieves indices of streamlines that went outside the bundle mask.
-            #bundle_inv = bundles_inv[bundle_idx]
-            #between_rois_out_mask_idx = set(filter_streamlines.get_streamlines_idx_in_ROIs_from_streamlines_idx_per_voxel(tes, bundle_inv))
-            #bundles_potential_VCWP[bundle_idx] |= (filtered_streamlines_idx & between_rois_out_mask_idx) - (set(global_select_strl_indices) | streamlines_idx)
-
-        chunk_it += 1
-
-    # Compute bundle overlap, overreach and f1_scores and update found_vbs_info
-    for bundle_idx, ref_bundle in enumerate(ref_bundles):
-        bundle_name = ref_bundle["name"]
-        bundle_mask = ref_bundle["mask"]
-
-        vb_info = found_vbs_info[bundle_name]
-        # TODO check if we need to play with affine
-        # Streamlines are in voxel space since that's how they were loaded in function `score_from_files`.
-        tractogram = Tractogram(streamlines=(streamlines[i] for i in vb_info['streamlines_indices']),
-                                affine_to_rasmm=bundle_mask.affine)
-
-        scores = {}
-        if len(tractogram) > 0:
-            scores = compute_bundle_coverage_scores(tractogram, bundle_mask)
-
-        vb_info['overlap'] = scores.get("OL", 0)
-        vb_info['overreach'] = scores.get("OR", 0)
-        vb_info['overreach_norm'] = scores.get("ORn", 0)
-        vb_info['f1_score'] = scores.get("F1", 0)
-
-    return VC_idx, found_vbs_info
 
 
 def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, wm,
@@ -377,7 +261,7 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
     # Load all streamlines, since streamlines is a generator.
     full_strl = [s for s in streamlines]
 
-    VC_indices, found_vbs_info = _auto_extract_VCs(full_strl, ref_bundles)
+    VC_indices, found_vbs_info = auto_extract_VCs(full_strl, ref_bundles)
     VC = len(VC_indices)
 
     if save_VBs:
