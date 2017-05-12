@@ -3,40 +3,34 @@
 
 from __future__ import division
 
-from collections import Counter
 import logging
 import os
-import random
 
 import nibabel as nib
 import numpy as np
 
 from dipy.tracking.streamline import set_number_of_points
 from dipy.segment.clustering import QuickBundles
-import dipy.segment.quickbundles as qb
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
 from dipy.tracking.metrics import length as slength
 
 from tractconverter.formats.tck import TCK
-# TODO remove
-from dipy.tracking.vox2track import track_counts as streamlines_count
 
 # TODO check names
 from challenge_scoring import NB_POINTS_RESAMPLE
 from challenge_scoring.io.streamlines import get_tracts_voxel_space_for_dipy, \
                                        save_tracts_tck_from_dipy_voxel_space, \
-                                       save_valid_connections
-from challenge_scoring.metrics.invalid_connections import get_closest_roi_pairs_for_all_streamlines
+                                       save_valid_connections, \
+                                       save_invalid_connections
+from challenge_scoring.metrics.invalid_connections import group_and_assign_ibs
 from challenge_scoring.metrics.valid_connections import auto_extract_VCs
-from challenge_scoring.utils.filenames import get_root_image_name
-
-# TODO remove
-#import filter_streamlines
 
 
 def score_from_files(filename, masks_dir, bundles_dir,
                      tracts_attribs, basic_bundles_attribs,
-                     save_full_vc=False, save_IBs=False,
+                     save_full_vc=False,
+                     save_full_ic=False,
+                     save_IBs=False,
                      save_VBs=False,
                      segmented_out_dir='', segmented_base_name='',
                      verbose=False):
@@ -116,7 +110,9 @@ def score_from_files(filename, masks_dir, bundles_dir,
     score_func = score_auto_extract_auto_IBs
 
     return score_func(streamlines_gen, bundles_masks, ref_bundles, ROIs, wm,
-                      save_full_vc=save_full_vc, save_IBs=save_IBs,
+                      save_full_vc=save_full_vc,
+                      save_full_ic=save_full_ic,
+                      save_IBs=save_IBs,
                       save_VBs=save_VBs,
                       out_segmented_strl_dir=segmented_out_dir,
                       base_out_segmented_strl=segmented_base_name,
@@ -127,13 +123,21 @@ def score_from_files(filename, masks_dir, bundles_dir,
 
 
 def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, wm,
-                                save_full_vc=False, save_IBs=False,
+                                save_full_vc=False,
+                                save_full_ic=False,
+                                save_IBs=False,
                                 save_VBs=False,
                                 out_segmented_strl_dir='',
                                 base_out_segmented_strl='',
                                 ref_anat_fname=''):
     """
     TODO document
+    
+     # New algorithm
+    # Step 1: remove streamlines shorter than threshold (currently 35)
+    # Step 2: apply Quickbundle with a distance threshold of 20
+    # Step 3: remove singletons
+    # Step 4: assign to closest ROIs pair
 
 
     Parameters
@@ -168,32 +172,25 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
     # Extract VCs and VBs
     VC_indices, found_vbs_info = auto_extract_VCs(full_strl, ref_bundles)
     VC = len(VC_indices)
-    print(save_VBs)
 
     if save_VBs or save_full_vc:
         save_valid_connections(found_vbs_info, full_strl, out_segmented_strl_dir,
                                base_out_segmented_strl, ref_anat_fname,
                                save_vbs=save_VBs, save_full_vc=save_full_vc)
 
-    # TODO might be readded
-    # To keep track of streamlines that have been classified
-    # classified_streamlines_indices = VC_indices
 
-    # New algorithm
-    # Step 1: remove streamlines shorter than threshold (currently 35)
-    # Step 2: apply Quickbundle with a distance threshold of 20
-    # Step 3: remove singletons
-    # Step 4: assign to closest ROIs pair
     logging.debug("Starting IC, IB scoring")
 
     total_strl_count = len(full_strl)
     candidate_ic_strl_indices = sorted(set(range(total_strl_count)) - VC_indices)
 
-    length_thres = 35.
-
     candidate_ic_streamlines = []
     rejected_streamlines = []
 
+    # Chosen from GT dataset
+    length_thres = 35.
+
+    # Filter streamlines that are too short, consider them as NC
     for idx in candidate_ic_strl_indices:
         if slength(full_strl[idx]) >= length_thres:
             candidate_ic_streamlines.append(full_strl[idx].astype('f4'))
@@ -204,68 +201,17 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
     logging.debug('Found {} streamlines that were too short'.format(len(rejected_streamlines)))
 
     ic_counts = 0
-    ib_pairs = {}
+    nb_ib = 0
 
     if len(candidate_ic_streamlines):
+        additional_rejected, ic_counts, nb_ib = group_and_assign_ibs(
+                                                   candidate_ic_streamlines,
+                                                   ROIs, save_IBs, save_full_ic,
+                                                   out_segmented_strl_dir,
+                                                   base_out_segmented_strl,
+                                                   ref_anat_fname)
 
-        # Fix seed to always generate the same output
-        # Shuffle to try to reduce the ordering dependency for QB
-        random.seed(0.2)
-        random.shuffle(candidate_ic_streamlines)
-
-
-        # TODO threshold on distance as arg
-        out_data = qb.QuickBundles(candidate_ic_streamlines,
-                                   dist_thr=20.,
-                                   pts=12)
-        clusters = out_data.clusters()
-
-        logging.debug("Found {} potential IB clusters".format(len(clusters)))
-
-        # TODO this should be better handled
-        rois_info = []
-        for roi in ROIs:
-            rois_info.append((get_root_image_name(os.path.basename(roi.get_filename())),
-                              np.array(np.where(roi.get_data())).T))
-
-        all_ics_closest_pairs = get_closest_roi_pairs_for_all_streamlines(candidate_ic_streamlines, rois_info)
-
-        for c_idx, c in enumerate(clusters):
-            closest_for_cluster = [all_ics_closest_pairs[i] for i in clusters[c]['indices']]
-
-            if len(clusters[c]['indices']) > 1:
-                ic_counts += len(clusters[c]['indices'])
-                occurences = Counter(closest_for_cluster)
-
-                # TODO handle either an equality or maybe a range
-                most_frequent = occurences.most_common(1)[0][0]
-
-                val = ib_pairs.get(most_frequent)
-                if val is None:
-                    # Check if flipped pair exists
-                    val1 = ib_pairs.get((most_frequent[1], most_frequent[0]))
-                    if val1 is not None:
-                        val1.append(c_idx)
-                    else:
-                        ib_pairs[most_frequent] = [c_idx]
-                else:
-                    val.append(c_idx)
-            else:
-                rejected_streamlines.append(candidate_ic_streamlines[clusters[c]['indices'][0]])
-
-        if save_IBs:
-            for k, v in ib_pairs.iteritems():
-                out_strl = []
-                for c_idx in v:
-                    out_strl.extend([s for s in np.array(candidate_ic_streamlines)[clusters[c_idx]['indices']]])
-
-                out_fname = os.path.join(out_segmented_strl_dir,
-                                         base_out_segmented_strl + \
-                                         '_IB_{0}_{1}.tck'.format(k[0], k[1]))
-
-                ib_f = TCK.create(out_fname)
-                save_tracts_tck_from_dipy_voxel_space(ib_f, ref_anat_fname,
-                                                      out_strl)
+        rejected_streamlines.extend(additional_rejected)
 
     # TODO add argument
     if len(rejected_streamlines) > 0:
@@ -275,7 +221,6 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
         save_tracts_tck_from_dipy_voxel_space(out_file, ref_anat_fname,
                                               rejected_streamlines)
 
-    # TODO readd classifed_steamlines_indices to validate
     if ic_counts != len(candidate_ic_strl_indices) - len(rejected_streamlines):
         raise ValueError("Some streamlines were not correctly assigned to NC")
 
@@ -283,9 +228,6 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
     IC = (len(candidate_ic_strl_indices) - len(rejected_streamlines)) / total_strl_count
     NC = len(rejected_streamlines) / total_strl_count
     VCWP = 0
-
-    # TODO could have sanity check on global extracted streamlines vs all
-    # possible indices
 
     nb_VB_found = [v['nb_streamlines'] > 0 for k, v in found_vbs_info.iteritems()].count(True)
     streamlines_per_bundle = {k: v['nb_streamlines'] for k, v in found_vbs_info.iteritems() if v['nb_streamlines'] > 0}
@@ -298,7 +240,7 @@ def score_auto_extract_auto_IBs(streamlines, bundles_masks, ref_bundles, ROIs, w
     scores['VCWP'] = VCWP
     scores['NC'] = NC
     scores['VB'] = nb_VB_found
-    scores['IB'] = len(ib_pairs.keys())
+    scores['IB'] = nb_ib
     scores['streamlines_per_bundle'] = streamlines_per_bundle
     scores['total_streamlines_count'] = total_strl_count
 

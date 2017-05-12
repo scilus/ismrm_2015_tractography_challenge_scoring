@@ -6,10 +6,14 @@ from __future__ import division
 from collections import Counter
 import logging
 import os
-from time import time
+import random
 
+import dipy.segment.quickbundles as qb
 import numpy as np
 from scipy.spatial.distance import cdist
+
+from challenge_scoring.io.streamlines import save_invalid_connections
+from challenge_scoring.utils.filenames import get_root_image_name
 
 
 def find_closest_distance_points_to_region(points, roi_volume):
@@ -70,7 +74,18 @@ def get_closest_roi_pairs_for_bundle(streamlines, rois):
 
 
 def get_closest_roi_pairs_for_all_streamlines(streamlines, rois):
-    start_point = np.reshape(streamlines[0][0], (-1, 3)) # Needs to be 2D for cdist
+    """
+    Find the closest pair of ROIs from the endpoints of each provided
+    streamline.
+    
+    # TODO params
+    :param streamlines: 
+    :param rois: 
+    :return: 
+    """
+
+    # Needs to be 2D for cdist
+    start_point = np.reshape(streamlines[0][0], (-1, 3))
 
     closest_rois_pairs = []
 
@@ -90,3 +105,70 @@ def get_closest_roi_pairs_for_all_streamlines(streamlines, rois):
         # TODO we could also have some condition for regions that overlap, and keep all of those
 
     return closest_rois_pairs
+
+
+def group_and_assign_ibs(candidate_streamlines, ROIs,
+                         save_ibs, save_full_ic,
+                         out_segmented_dir, base_name, ref_anat_fname):
+    ic_counts = 0
+    ib_pairs = {}
+
+    rejected_streamlines = []
+
+    # Start by clustering all the remaining potentiel IC using QB.
+
+    # Fix seed to always generate the same output
+    # Shuffle to try to reduce the ordering dependency for QB
+    random.seed(0.2)
+    random.shuffle(candidate_streamlines)
+
+    # TODO threshold on distance as arg for other datasets
+    out_data = qb.QuickBundles(candidate_streamlines,
+                               dist_thr=20.,
+                               pts=12)
+    clusters = out_data.clusters()
+
+    logging.debug("Found {} potential IB clusters".format(len(clusters)))
+
+    # Prefetch information about the bundles endpoints regions of interest.
+    # Is used in the get_closest_roi_pairs... function.
+    rois_info = []
+    for roi in ROIs:
+        rois_info.append((get_root_image_name(os.path.basename(roi.get_filename())),
+                          np.array(np.where(roi.get_data())).T))
+
+    all_ics_closest_pairs = get_closest_roi_pairs_for_all_streamlines(candidate_streamlines, rois_info)
+
+    for c_idx, c in enumerate(clusters):
+        closest_for_cluster = [all_ics_closest_pairs[i] for i in clusters[c]['indices']]
+
+        # Clusters containing only a single streamlines are rejected.
+        if len(clusters[c]['indices']) > 1:
+            ic_counts += len(clusters[c]['indices'])
+            occurences = Counter(closest_for_cluster)
+
+            # TODO could be changed in future to allow an equality
+            most_frequent = occurences.most_common(1)[0][0]
+
+            val = ib_pairs.get(most_frequent)
+            if val is None:
+                # Check if flipped pair exists
+                val1 = ib_pairs.get((most_frequent[1], most_frequent[0]))
+                if val1 is not None:
+                    val1.append(c_idx)
+                else:
+                    ib_pairs[most_frequent] = [c_idx]
+            else:
+                val.append(c_idx)
+        else:
+            rejected_streamlines.append(candidate_streamlines[clusters[c]['indices'][0]])
+
+    if save_ibs or save_full_ic:
+        save_invalid_connections(ib_pairs, candidate_streamlines,
+                                 clusters, out_segmented_dir,
+                                 base_name,
+                                 ref_anat_fname,
+                                 save_full_ic=save_full_ic,
+                                 save_ibs=save_ibs)
+
+    return rejected_streamlines, ic_counts, len(ib_pairs.keys())

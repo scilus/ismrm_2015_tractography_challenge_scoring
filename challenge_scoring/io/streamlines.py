@@ -142,3 +142,42 @@ def save_valid_connections(extracted_vb_info, streamlines,
         save_tracts_tck_from_dipy_voxel_space(tract_file,
                                               ref_anat_fname,
                                               full_vcs)
+
+
+def save_invalid_connections(ib_info, streamlines, ic_clusters,
+                             out_segmented_dir, base_name,
+                             ref_anat_fname,
+                             save_full_ic=False, save_ibs=False):
+    # ib_info is a dictionary containing all the pairs of ROIs that were
+    # assigned to some IB. The value of each element is a list containing the
+    # clusters indices of clusters that were assigned to that ROI pair.
+    if not save_full_ic and not save_ibs:
+        return
+
+    full_ic = []
+
+    for k, v in ib_info.iteritems():
+        out_strl = []
+        for c_idx in v:
+            out_strl.extend([s for s in np.array(streamlines)[
+                ic_clusters[c_idx]['indices']]])
+
+        if save_ibs:
+            out_fname = os.path.join(out_segmented_dir,
+                                     base_name +
+                                     '_IB_{0}_{1}.tck'.format(k[0], k[1]))
+
+            ib_f = TCK.create(out_fname)
+            save_tracts_tck_from_dipy_voxel_space(ib_f, ref_anat_fname,
+                                                  out_strl)
+
+        if save_full_ic:
+            full_ic.extend(out_strl)
+
+    if save_full_ic and len(full_ic):
+        out_name = os.path.join(out_segmented_dir, base_name + '_IC.tck')
+        tract_file = TCK.create(out_name)
+
+        save_tracts_tck_from_dipy_voxel_space(tract_file,
+                                              ref_anat_fname,
+                                              full_ic)
