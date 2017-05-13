@@ -50,7 +50,6 @@ def buildArgsParser():
     p.add_argument('tractogram', action='store',
                    metavar='TRACTS', type=str, help='Tractogram file')
 
-    # TODO where do we host this?
     p.add_argument('base_dir', action='store',
                    metavar='BASE_DIR', type=str,
                    help='base directory for scoring data.\n'
@@ -65,11 +64,6 @@ def buildArgsParser():
                         'anon_submissions_attributes.json.\n' +
                         'Can be computed with ' +
                         'ismrm_compute_submissions_attributes.py.')
-
-    p.add_argument('basic_bundles_attribs', action='store',
-                   metavar='GT_ATTRIBUTES', type=str,
-                   help='attributes of the basic bundles. ' +
-                        'Same format as SUBMISSIONS_ATTRIBUTES')
 
     p.add_argument('out_dir',    action='store',
                    metavar='OUT_DIR',  type=str,
@@ -120,9 +114,6 @@ def main():
     if not os.path.isfile(attribs_file):
         parser.error('"{0}" must be a file!'.format(attribs_file))
 
-    if not os.path.isfile(args.basic_bundles_attribs):
-        parser.error('"{0}" is not a file!'.format(args.basic_bundles_attribs))
-
     if out_dir is not None:
         out_dir = mkdir(out_dir + "/").replace("//", "/")
 
@@ -140,7 +131,15 @@ def main():
     # TODO support just giving the orientation attribute
     tracts_attribs = get_attribs_for_file(attribs_file,
                                           os.path.basename(tractogram))
-    basic_bundles_attribs = load_attribs(args.basic_bundles_attribs)
+
+
+    # Basic bundle attributes should be stored in the scoring data directory.
+    gt_bundles_attribs_path = os.path.join(args.base_dir,
+                                           'gt_bundles_attributes.json')
+    if not os.path.isfile(gt_bundles_attribs_path):
+        parser.error('Missing the "gt_bundles_attributes.json" file in the '
+                     'provided base directory.')
+    basic_bundles_attribs = load_attribs(gt_bundles_attribs_path)
 
     # TODO remove files in out_dir segmented
     if args.save_full_vc or args.save_full_ic or args.save_ib or args.save_vb \
