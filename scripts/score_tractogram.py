@@ -8,9 +8,10 @@ import logging
 import os
 
 from challenge_scoring.io.results import save_results
+from challenge_scoring.io.streamlines import format_needs_orientation, \
+    guess_orientation
 from challenge_scoring.metrics.scoring import score_submission
-from challenge_scoring.utils.attributes import get_attribs_for_file,\
-                                               load_attribs
+from challenge_scoring.utils.attributes import load_attribs
 from challenge_scoring.utils.filenames import mkdir
 
 
@@ -57,18 +58,13 @@ def buildArgsParser():
                         'See www.tractometer.org/downloads/downloads/'
                         'scoring_data_tractography_challenge.tar.gz')
 
-    p.add_argument('metadata_file', action='store',
-                   metavar='TRACT_ATTRIBUTES', type=str,
-                   help='attributes file of the submission.'
-                        'Needs to contain the orientation.\n'
-                        'Normally, use metadata/ismrm_challenge_2015/' +
-                        'anon_submissions_attributes.json.\n' +
-                        'Can be computed with ' +
-                        'ismrm_compute_submissions_attributes.py.')
-
     p.add_argument('out_dir',    action='store',
                    metavar='OUT_DIR',  type=str,
                    help='directory where to send score files')
+
+    p.add_argument('--orientation', action='store',
+                   choices=['RAS', 'LPS'],
+                   help='Orientation of the streamlines file. Needed for VTK.')
 
     p.add_argument('--save_full_vc', action='store_true',
                    help='save one file containing all VCs')
@@ -96,7 +92,6 @@ def main():
 
     tractogram = args.tractogram
     base_dir = args.base_dir
-    attribs_file = args.metadata_file
     out_dir = args.out_dir
 
     if args.verbose:
@@ -107,9 +102,6 @@ def main():
 
     if not os.path.isdir(base_dir):
         parser.error('"{0}" must be a directory!'.format(base_dir))
-
-    if not os.path.isfile(attribs_file):
-        parser.error('"{0}" must be a file!'.format(attribs_file))
 
     out_dir = mkdir(out_dir + "/").replace("//", "/")
     scores_dir = mkdir(os.path.join(out_dir, "scores"))
@@ -146,11 +138,6 @@ def main():
             for f in segmented_files:
                 os.remove(f)
 
-    # TODO support just giving the orientation attribute
-    tracts_attribs = get_attribs_for_file(attribs_file,
-                                          os.path.basename(tractogram))
-
-
     # Basic bundle attributes should be stored in the scoring data directory.
     gt_bundles_attribs_path = os.path.join(args.base_dir,
                                            'gt_bundles_attributes.json')
@@ -160,7 +147,18 @@ def main():
 
     basic_bundles_attribs = load_attribs(gt_bundles_attribs_path)
 
-    scores = score_submission(tractogram, tracts_attribs,
+    # Check and compute orientation attribute for the submitted tractogram
+    tract_attribute = {'orientation': 'unknown'}
+    if format_needs_orientation(tractogram):
+        if not args.orientation:
+            parser.error('--orientation is needed for your tractogram format')
+    else:
+        if args.orientation:
+            logging.warn('--orientation was provided but not needed. '
+                         'Will be discarded.')
+        tract_attribute['orientation'] = guess_orientation(tractogram)
+
+    scores = score_submission(tractogram, tract_attribute,
                               base_dir, basic_bundles_attribs,
                               args.save_full_vc,
                               args.save_full_ic,
@@ -169,7 +167,7 @@ def main():
                               segments_dir, base_name, args.verbose)
 
     if scores is not None:
-        save_results(scores_filename[:-4] + '.json', scores)
+        save_results(scores_filename, scores)
 
 
 if __name__ == "__main__":
