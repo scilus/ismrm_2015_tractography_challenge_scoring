@@ -3,6 +3,7 @@
 from __future__ import division
 
 import argparse
+import glob
 import logging
 import os
 
@@ -81,9 +82,9 @@ def buildArgsParser():
     p.add_argument('--save_vb', action='store_true',
                    help='save VB independently.')
 
-    p.add_argument('-f', dest='is_forcing', action='store_true',
+    p.add_argument('-f', dest='force', action='store_true',
                    required=False, help='overwrite output files')
-    p.add_argument('-v', dest='is_verbose', action='store_true',
+    p.add_argument('-v', dest='verbose', action='store_true',
                    required=False, help='produce verbose output')
 
     return p
@@ -98,11 +99,7 @@ def main():
     attribs_file = args.metadata_file
     out_dir = args.out_dir
 
-    isForcing = args.is_forcing
-    isVerbose = args.is_verbose
-
-    if isVerbose:
-        # TODO check level to send to scoring
+    if args.verbose:
         logging.basicConfig(level=logging.DEBUG)
 
     if not os.path.isfile(tractogram):
@@ -114,19 +111,40 @@ def main():
     if not os.path.isfile(attribs_file):
         parser.error('"{0}" must be a file!'.format(attribs_file))
 
-    if out_dir is not None:
-        out_dir = mkdir(out_dir + "/").replace("//", "/")
-
+    out_dir = mkdir(out_dir + "/").replace("//", "/")
     scores_dir = mkdir(os.path.join(out_dir, "scores"))
-    # TODO remove all pkl mentions
-    scores_filename = scores_dir + tractogram.split('/')[-1][:-4] + ".pkl"
+    scores_filename = os.path.join(scores_dir,
+                                   os.path.splitext(os.path.basename(tractogram))[0]
+                                   + ".json")
 
+    score_exists = False
+    segmented_files = []
+
+    # Check if some results already exist
     if os.path.isfile(scores_filename):
-        if isForcing:
-            os.remove(scores_filename)
+        score_exists = True
+
+    segments_dir = ''
+    base_name = ''
+
+    if args.save_full_vc or args.save_full_ic or args.save_ib or args.save_vb \
+        or args.save_full_nc:
+        segments_dir = mkdir(os.path.join(out_dir, "segmented"))
+        base_name = os.path.splitext(os.path.basename(tractogram))[0]
+
+        segmented_files = glob.glob(os.path.join(segments_dir,
+                                                 base_name + '*.tck'))
+
+    if score_exists or len(segmented_files):
+        if not args.force:
+            parser.error(
+                'Scores file or segmented files already exist.'
+                '\nPlease remove or use -f to overwrite.')
         else:
-            print "Skipping... {0}".format(scores_filename)
-            return
+            if score_exists:
+                os.remove(scores_filename)
+            for f in segmented_files:
+                os.remove(f)
 
     # TODO support just giving the orientation attribute
     tracts_attribs = get_attribs_for_file(attribs_file,
@@ -139,16 +157,8 @@ def main():
     if not os.path.isfile(gt_bundles_attribs_path):
         parser.error('Missing the "gt_bundles_attributes.json" file in the '
                      'provided base directory.')
-    basic_bundles_attribs = load_attribs(gt_bundles_attribs_path)
 
-    # TODO remove files in out_dir segmented
-    if args.save_full_vc or args.save_full_ic or args.save_ib or args.save_vb \
-       or args.save_full_nc:
-        segments_dir = mkdir(os.path.join(out_dir, "segmented"))
-        base_name = os.path.splitext(os.path.basename(tractogram))[0]
-    else:
-        segments_dir = ''
-        base_name = ''
+    basic_bundles_attribs = load_attribs(gt_bundles_attribs_path)
 
     scores = score_submission(tractogram, tracts_attribs,
                               base_dir, basic_bundles_attribs,
@@ -156,7 +166,7 @@ def main():
                               args.save_full_ic,
                               args.save_full_nc,
                               args.save_ib, args.save_vb,
-                              segments_dir, base_name, isVerbose)
+                              segments_dir, base_name, args.verbose)
 
     if scores is not None:
         save_results(scores_filename[:-4] + '.json', scores)
