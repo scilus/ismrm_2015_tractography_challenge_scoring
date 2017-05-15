@@ -1,0 +1,6 @@
+setuptools==2.2
+numpy==1.11.2
+scipy==0.18.1
+nibabel==2.1.0
+Cython==0.25.2
+dipy==0.11.0
