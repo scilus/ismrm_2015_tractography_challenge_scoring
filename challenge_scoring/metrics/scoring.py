@@ -16,19 +16,18 @@ from dipy.tracking.metrics import length as slength
 
 from tractconverter.formats.tck import TCK
 
-# TODO check names
 from challenge_scoring import NB_POINTS_RESAMPLE
 from challenge_scoring.io.streamlines import get_tracts_voxel_space_for_dipy, \
                                        save_tracts_tck_from_dipy_voxel_space, \
-                                       save_valid_connections, \
-                                       save_invalid_connections
+                                       save_valid_connections
 from challenge_scoring.metrics.invalid_connections import group_and_assign_ibs
 from challenge_scoring.metrics.valid_connections import auto_extract_VCs
 
 
 def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
                              gt_bundles_attribs, ref_anat_fname):
-    # Ref bundles will contain {'name': 'name_of_the_bundle', 'threshold': thres_value,
+    # Ref bundles will contain {'name': 'name_of_the_bundle',
+    #                           'threshold': thres_value,
     #                           'streamlines': list_of_streamlines}
 
     dummy_attribs = {'orientation': 'LPS'}
@@ -79,39 +78,53 @@ def score_submission(streamlines_fname,
                      segmented_base_name='',
                      verbose=False):
     """
-    TODO document
-    
-     # New algorithm
-    # Step 1: remove streamlines shorter than threshold (currently 35)
-    # Step 2: apply Quickbundle with a distance threshold of 20
-    # Step 3: remove singletons
-    # Step 4: assign to closest ROIs pair
+    Score a submission, using the following algorithm:
+        1: extract all streamlines that are valid, which are classified as
+           Valid Connections (VC) making up Valid Bundles (VB).
+        2: remove streamlines shorter than an threshold based on the GT dataset
+        3: cluster the remaining streamlines
+        4: remove singletons
+        5: assign each cluster to the closest ROIs pair. Those make up the
+           Invalid Connections (IC), grouped as Invalid Bundles (IB).
+        6: streamlines that are neither in VC nor IC are classified as
+           No Connection (NC).
 
 
     Parameters
     ------------
-    streamlines : sequence
-        sequence of T streamlines. One streamline is an ndarray of shape (N, 3),
-        where N is the number of points in that streamline, and
-        ``streamlines[t][n]`` is the n-th point in the t-th streamline. Points
-        are of form x, y, z in *voxel* coordinates.
-    bundles_masks : sequence
-        list of nibabel objects corresponding to mask of bundles
-    ROIs : sequence
-        list of nibabel objects corresponding to mask of ROIs
-    wm : nibabel object
-        mask of the white matter
-    save_segmented : bool
-        if true, returns indices of streamlines composing VC, IC, VCWP and NC
+    streamlines_fname : string
+        path to the file containing the streamlines.
+    tracts_attribs : dictionary
+        contains the attributes of the submission. Must contain the
+        'orientation' attribute for .vtk files.
+    base_data_dir : string
+        path to the direction containing the scoring data.
+    basic_bundles_attribs : dictionary
+        contains the attributes of the basic bundles (name, list of streamlines,
+        segmentation threshold)
+    save_full_vc : bool
+        indicates if the full set of VC will be saved in an individual file.
+    save_full_ic : bool
+        indicates if the full set of IC will be saved in an individual file.
+    save_full_nc : bool
+        indicates if the full set of NC will be saved in an individual file.
+    save_IBs : bool
+        indicates if the invalid bundles will be saved in individual file for
+        each IB.
+    save_VBs : bool
+        indicates if the valid bundles will be saved in individual file for
+        each VB.
+    segmented_out_dir : string
+        the path to the directory where segmented files will be saved.
+    segmented_base_name : string
+        the base name to use for saving segmented files.
+    verbose : bool
+        indicates if the algorithm needs to be verbose when logging messages.
 
     Returns
     ---------
     scores : dict
         dictionnary containing a score for each metric
-    indices : dict
-        dictionnary containing the indices of streamlines composing VC, IC,
-        VCWP and NC
-
     """
 
     if verbose:
@@ -132,7 +145,6 @@ def score_submission(streamlines_fname,
                                            bundles_masks_dir,
                                            basic_bundles_attribs,
                                            ref_anat_fname)
-
 
     streamlines_gen = get_tracts_voxel_space_for_dipy(streamlines_fname,
                                                       ref_anat_fname,
@@ -193,8 +205,6 @@ def score_submission(streamlines_fname,
         out_file = TCK.create(out_nc_fname)
         save_tracts_tck_from_dipy_voxel_space(out_file, ref_anat_fname,
                                               rejected_streamlines)
-
-
 
     VC /= total_strl_count
     IC = (len(candidate_ic_strl_indices) - len(rejected_streamlines)) / total_strl_count
