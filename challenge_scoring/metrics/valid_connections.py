@@ -17,18 +17,12 @@ from challenge_scoring import NB_POINTS_RESAMPLE
 from challenge_scoring.metrics.bundle_coverage import compute_bundle_coverage_scores
 
 
-# TODO set global logger
-
 def auto_extract(model_cluster_map, submission_cluster_map,
                  number_pts_per_str=NB_POINTS_RESAMPLE,
                  close_centroids_thr=20,
-                 clean_thr=7.,
-                 disp=False, verbose=False):
+                 clean_thr=7.):
 
     model_centroids = model_cluster_map.centroids
-
-    # TODO Logging
-    # print('# Find centroids which are close to the model_centroids')
 
     centroid_matrix = bundles_distances_mdf(model_centroids,
                                             submission_cluster_map.centroids)
@@ -43,9 +37,6 @@ def auto_extract(model_cluster_map, submission_cluster_map,
 
     close_streamlines = list(chain(*close_clusters))
     closer_streamlines = close_streamlines
-
-    # TODO logging
-    # print('# Remove streamlines which are a bit far')
 
     rcloser_streamlines = set_number_of_points(closer_streamlines,
                                                number_pts_per_str)
@@ -71,7 +62,6 @@ def auto_extract(model_cluster_map, submission_cluster_map,
 def auto_extract_VCs(streamlines, ref_bundles):
     # Streamlines = list of all streamlines
 
-    # TODO check what is needed
     VC = 0
     VC_idx = set()
 
@@ -79,9 +69,6 @@ def auto_extract_VCs(streamlines, ref_bundles):
     for bundle in ref_bundles:
         found_vbs_info[bundle['name']] = {'nb_streamlines': 0,
                                           'streamlines_indices': set()}
-
-    # TODO probably not needed
-    already_assigned_streamlines_idx = set()
 
     # Need to bookkeep because we chunk for big datasets
     processed_strl_count = 0
@@ -124,7 +111,6 @@ def auto_extract_VCs(streamlines, ref_bundles):
                                                         clean_thr=ref_bundle['threshold'])
 
             # Remove duplicates, when streamlines are assigned to multiple VBs.
-            # TODO better handling of this case
             selected_streamlines_indices = set(selected_streamlines_indices) - \
                                            cur_chunk_VC_idx
             cur_chunk_VC_idx |= selected_streamlines_indices
@@ -143,7 +129,6 @@ def auto_extract_VCs(streamlines, ref_bundles):
                 vb_info['streamlines_indices'] |= global_select_strl_indices
 
                 VC_idx |= global_select_strl_indices
-                already_assigned_streamlines_idx |= global_select_strl_indices
             else:
                 global_select_strl_indices = set()
 
