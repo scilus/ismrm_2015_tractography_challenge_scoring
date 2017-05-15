@@ -156,8 +156,8 @@ def auto_extract_VCs(streamlines, ref_bundles):
 
         vb_info = found_vbs_info[bundle_name]
 
-        # TODO check if we need to play with affine
-        # Streamlines are in voxel space since that's how they were loaded in function `score_from_files`.
+        # Streamlines are in voxel space since that's how they were
+        # loaded in the scoring function.
         tractogram = Tractogram(streamlines=(streamlines[i] for i in vb_info['streamlines_indices']),
                                 affine_to_rasmm=bundle_mask.affine)
 

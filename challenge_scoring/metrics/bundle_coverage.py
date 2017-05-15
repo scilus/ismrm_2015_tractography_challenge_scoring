@@ -4,7 +4,7 @@ from __future__ import division
 
 import numpy as np
 
-# TODO we need this... again
+
 from challenge_scoring.tractanalysis.robust_streamlines_metrics \
     import compute_robust_tract_counts_map
 
@@ -42,13 +42,13 @@ def _compute_overreach_normalize_gt(gt_data, candidate_data):
 
 
 def _create_binary_map(tractogram, ref_img):
-    # TODO check if this is needed or not
     tractogram.to_world().apply_affine(np.linalg.inv(ref_img.affine))  # Send to voxel space.
     translation = np.eye(4)
     translation[:-1,-1] = 0.5
     tractogram.apply_affine(translation) # Shift of half a voxel.
 
-    sl_map = compute_robust_tract_counts_map(tractogram.streamlines, ref_img.shape)
+    sl_map = compute_robust_tract_counts_map(tractogram.streamlines,
+                                             ref_img.shape)
     return (sl_map > 0).astype(np.int16)
 
 

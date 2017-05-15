@@ -5,7 +5,7 @@ import glob
 import json
 import os
 
-# TODO check if all those are needed
+
 def load_attribs(attribs_filepath):
     with open(attribs_filepath, 'rb') as attribs_file:
         attribs = json.load(attribs_file)

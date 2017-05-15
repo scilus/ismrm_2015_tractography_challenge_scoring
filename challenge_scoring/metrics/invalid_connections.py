@@ -17,9 +17,6 @@ from challenge_scoring.utils.filenames import get_root_image_name
 
 
 def find_closest_distance_points_to_region(points, roi_volume):
-    # TODO add validations
-    # TODO commented because we moved it higher to avoid doing it all the time
-    #roi_coords = np.array(np.where(roi_volume)).T
     roi_coords = roi_volume
     dists = cdist(points, roi_coords, 'euclidean')
 
@@ -27,15 +24,16 @@ def find_closest_distance_points_to_region(points, roi_volume):
 
 
 def find_closest_region(points, rois):
-    # points is a 2D array, each row being 1 point. We expect 2 rows (start and end points)
+    # points is a 2D array, each row being 1 point.
+    # We expect 2 rows (start and end points)
     # rois is a list of (region name, region_data)
 
-    # TODO use type max
     min_global_dists = [100000, 100000]
     closest_region_names = ["", ""]
 
     for region_name, region_data in rois:
-        closest_dists = find_closest_distance_points_to_region(points, region_data)
+        closest_dists = find_closest_distance_points_to_region(points,
+                                                               region_data)
 
         if closest_dists[0] < min_global_dists[0]:
             min_global_dists[0] = closest_dists[0]
@@ -64,12 +62,8 @@ def get_closest_roi_pairs_for_bundle(streamlines, rois):
         closest_region_names, min_dists = find_closest_region(endpoints, rois)
         closest_rois_pairs.append(tuple(closest_region_names))
 
-        # TODO we could use distance to validate
-        # TODO we could also have some condition for regions that overlap, and keep all of those
-
     occurences = Counter(closest_rois_pairs)
 
-    # TODO handle either an equality or maybe a range
     return occurences.most_common(1)[0][0]
 
 
@@ -100,9 +94,6 @@ def get_closest_roi_pairs_for_all_streamlines(streamlines, rois):
 
         closest_region_names, min_dists = find_closest_region(endpoints, rois)
         closest_rois_pairs.append(tuple(closest_region_names))
-
-        # TODO we could use distance to validate
-        # TODO we could also have some condition for regions that overlap, and keep all of those
 
     return closest_rois_pairs
 
