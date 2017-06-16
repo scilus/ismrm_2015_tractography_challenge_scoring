@@ -44,3 +44,23 @@ To be able to run the scoring system, a directory containing the ground
 truth dataset is needed. It can be downloaded from
 [the Tractometer website](www.tractometer.org/downloads/downloads/scoring_data_tractography_challenge.tar.gz).
 
+
+Scoring a tractogram
+--------------------
+
+Once the ground truth dataset is unarchived (for example, to the
+```scoring_data``` directory, one needs to create a directory where
+all results will be saved. Let's call it ```results``` for now.
+
+Then, an example call to the scoring system will be
+
+```bash
+./scripts/score_tractogram.py YOUR_TRACTOGRAM_FILE scoring_data/ results/
+```
+
+where ```YOUR_TRACTOGRAM_FILE``` is replaced with the path of the
+tractogram file that will be scored.
+
+Additional flags use to control the saving behavior of the script are
+available. Call ```score_tractogram.py -h``` to get the list of such
+flags.
