@@ -53,7 +53,7 @@ ext_modules.append(Extension('challenge_scoring.tractanalysis.robust_streamlines
 
 dependencies = ['dipy', 'nibabel']
 
-setup(name='ismrm_2015_tractography_challenge_scoring', version='1.0.0',
+setup(name='ismrm_2015_tractography_challenge_scoring', version='1.0.1',
       description='Scoring system used for the ISMRM 2015 Tractography Challenge',
       url='https://github.com/scilus/ismrm_2015_tractography_challenge_scoring',
       ext_modules=ext_modules, author='The challenge team',
