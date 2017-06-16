@@ -12,7 +12,9 @@ import numpy as np
 cimport numpy as np
 
 from libc.math cimport sqrt, floor, ceil, fabs
-from libc.math cimport fmin as cfmin
+
+cdef extern from "c_math.h" nogil:
+      double fmin(double x, double y)
 
 # Changing this to a memview was slower.
 @cython.boundscheck(False)
@@ -137,7 +139,7 @@ def compute_robust_tract_counts_map(streamlines, vol_dims):
                     # Gain in performance, since we can use
                     # @cython.cdivision(True)
                     if dir_vect[cno] != 0:
-                        length_ratio = cfmin(fabs((cur_edge[cno] - in_pt[cno]) /
+                        length_ratio = fmin(fabs((cur_edge[cno] - in_pt[cno]) /
                                              dir_vect[cno]), length_ratio)
 
                 remaining_dist -= length_ratio * dir_vect_norm

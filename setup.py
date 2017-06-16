@@ -4,7 +4,7 @@ from Cython.Distutils import Extension
 from Cython.Distutils import build_ext
 
 from glob import glob
-from os.path import splitext, join
+import os
 
 try:
   import numpy
@@ -45,11 +45,15 @@ class build_inplace_all_ext(build_ext):
 ext_modules = []
 ext_modules.append(Extension('challenge_scoring.tractanalysis.robust_streamlines_metrics',
                              ['challenge_scoring/tractanalysis/robust_streamlines_metrics.pyx'],
-                             include_dirs=[numpy.get_include()]))
+                             include_dirs=[numpy.get_include(),
+                                           os.path.join(
+                                               os.path.dirname(
+                                                   os.path.realpath(__file__)),
+                                               'challenge_scoring/c_src')]))
 
 dependencies = ['dipy', 'nibabel']
 
-setup(name='ismrm_2015_tractography_challenge_scoring', version='1.0.0',
+setup(name='ismrm_2015_tractography_challenge_scoring', version='1.0.1',
       description='Scoring system used for the ISMRM 2015 Tractography Challenge',
       url='https://github.com/scilus/ismrm_2015_tractography_challenge_scoring',
       ext_modules=ext_modules, author='The challenge team',
