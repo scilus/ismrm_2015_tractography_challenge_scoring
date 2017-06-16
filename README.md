@@ -5,7 +5,7 @@ recreate the results of the ISMRM 2015 Tractography Challenge and to
 evaluate new datasets.
 
 The release used to produce results for the [website](http://www.tractometer.org/ismrm_2015_challenge/) and
-paper is archived on Zenodo [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.580063.svg)](https://doi.org/10.5281/zenodo.580063).
+paper is archived on Zenodo [![DOI](https://zenodo.org/badge/55703078.svg)](https://zenodo.org/badge/latestdoi/55703078).
 
 
 Configuration and installation
