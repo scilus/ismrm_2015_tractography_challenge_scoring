@@ -48,6 +48,15 @@ truth dataset is needed. It can be downloaded from
 Scoring a tractogram
 --------------------
 
+Before trying to run the script, the terminal needs to be configured
+to correctly find the code. Suppose the code is cloned in a directory
+```CODE_DIR/ismrm_2015_tractography_challenge_scoring```, run the following
+command
+
+```bash
+export PYTHONPATH=CODE_DIR/ismrm_2015_tractography_challenge_scoring
+```
+
 Once the ground truth dataset is unarchived (for example, to the
 ```scoring_data``` directory, one needs to create a directory where
 all results will be saved. Let's call it ```results``` for now.
