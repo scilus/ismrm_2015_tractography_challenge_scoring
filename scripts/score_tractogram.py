@@ -152,6 +152,7 @@ def main():
     if format_needs_orientation(tractogram):
         if not args.orientation:
             parser.error('--orientation is needed for your tractogram format')
+        tract_attribute['orientation'] = args.orientation
     else:
         if args.orientation:
             logging.warn('--orientation was provided but not needed. '
