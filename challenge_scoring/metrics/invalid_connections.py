@@ -8,8 +8,9 @@ import logging
 import os
 import random
 
-import dipy.segment.quickbundles as qb
 import numpy as np
+
+from dipy.segment.clustering import QuickBundles
 from scipy.spatial.distance import cdist
 
 from challenge_scoring.io.streamlines import save_invalid_connections
@@ -46,7 +47,8 @@ def find_closest_region(points, rois):
 
 
 def get_closest_roi_pairs_for_bundle(streamlines, rois):
-    start_point = np.reshape(streamlines[0][0], (-1, 3)) # Needs to be 2D for cdist
+    # Needs to be 2D for cdist
+    start_point = np.reshape(streamlines[0][0], (-1, 3))
 
     closest_rois_pairs = []
 
@@ -71,11 +73,11 @@ def get_closest_roi_pairs_for_all_streamlines(streamlines, rois):
     """
     Find the closest pair of ROIs from the endpoints of each provided
     streamline.
-    
+
     # TODO params
-    :param streamlines: 
-    :param rois: 
-    :return: 
+    :param streamlines:
+    :param rois:
+    :return:
     """
 
     # Needs to be 2D for cdist
@@ -114,10 +116,9 @@ def group_and_assign_ibs(candidate_streamlines, ROIs,
     random.shuffle(candidate_streamlines)
 
     # TODO threshold on distance as arg for other datasets
-    out_data = qb.QuickBundles(candidate_streamlines,
-                               dist_thr=20.,
-                               pts=12)
-    clusters = out_data.clusters()
+    qb = QuickBundles(threshold=20.,
+                      metric='MDF_12points')
+    clusters = qb.cluster(candidate_streamlines)
 
     logging.debug("Found {} potential IB clusters".format(len(clusters)))
 
@@ -125,17 +126,20 @@ def group_and_assign_ibs(candidate_streamlines, ROIs,
     # Is used in the get_closest_roi_pairs... function.
     rois_info = []
     for roi in ROIs:
-        rois_info.append((get_root_image_name(os.path.basename(roi.get_filename())),
-                          np.array(np.where(roi.get_data())).T))
+        rois_info.append((
+            get_root_image_name(os.path.basename(roi.get_filename())),
+            np.array(np.where(roi.get_data())).T))
 
-    all_ics_closest_pairs = get_closest_roi_pairs_for_all_streamlines(candidate_streamlines, rois_info)
+    all_ics_closest_pairs = get_closest_roi_pairs_for_all_streamlines(
+        candidate_streamlines, rois_info)
 
     for c_idx, c in enumerate(clusters):
-        closest_for_cluster = [all_ics_closest_pairs[i] for i in clusters[c]['indices']]
+        closest_for_cluster = [all_ics_closest_pairs[i]
+                               for i in c.indices]
 
         # Clusters containing only a single streamlines are rejected.
-        if len(clusters[c]['indices']) > 1:
-            ic_counts += len(clusters[c]['indices'])
+        if len(c.indices) > 1:
+            ic_counts += len(c.indices)
             occurences = Counter(closest_for_cluster)
 
             # TODO could be changed in future to allow an equality
@@ -152,7 +156,8 @@ def group_and_assign_ibs(candidate_streamlines, ROIs,
             else:
                 val.append(c_idx)
         else:
-            rejected_streamlines.append(candidate_streamlines[clusters[c]['indices'][0]])
+            rejected_streamlines.append(
+                candidate_streamlines[c.indices[0]])
 
     if save_ibs or save_full_ic:
         save_invalid_connections(ib_pairs, candidate_streamlines,

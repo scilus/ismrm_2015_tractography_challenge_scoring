@@ -8,8 +8,7 @@ import logging
 import os
 
 from challenge_scoring.io.results import save_results
-from challenge_scoring.io.streamlines import format_needs_orientation, \
-    guess_orientation
+from challenge_scoring.io.streamlines import guess_orientation
 from challenge_scoring.metrics.scoring import score_submission
 from challenge_scoring.utils.attributes import load_attribs
 from challenge_scoring.utils.filenames import mkdir
@@ -62,10 +61,6 @@ def buildArgsParser():
                    metavar='OUT_DIR',  type=str,
                    help='directory where to send score files')
 
-    p.add_argument('--orientation', action='store',
-                   choices=['RAS', 'LPS'],
-                   help='Orientation of the streamlines file. Needed for VTK.')
-
     p.add_argument('--save_full_vc', action='store_true',
                    help='save one file containing all VCs')
     p.add_argument('--save_full_ic', action='store_true',
@@ -106,7 +101,8 @@ def main():
     out_dir = mkdir(out_dir + "/").replace("//", "/")
     scores_dir = mkdir(os.path.join(out_dir, "scores"))
     scores_filename = os.path.join(scores_dir,
-                                   os.path.splitext(os.path.basename(tractogram))[0]
+                                   os.path.splitext(
+                                       os.path.basename(tractogram))[0]
                                    + ".json")
 
     score_exists = False
@@ -120,7 +116,7 @@ def main():
     base_name = ''
 
     if args.save_full_vc or args.save_full_ic or args.save_ib or args.save_vb \
-        or args.save_full_nc:
+            or args.save_full_nc:
         segments_dir = mkdir(os.path.join(out_dir, "segmented"))
         base_name = os.path.splitext(os.path.basename(tractogram))[0]
 
@@ -149,15 +145,7 @@ def main():
 
     # Check and compute orientation attribute for the submitted tractogram
     tract_attribute = {'orientation': 'unknown'}
-    if format_needs_orientation(tractogram):
-        if not args.orientation:
-            parser.error('--orientation is needed for your tractogram format')
-        tract_attribute['orientation'] = args.orientation
-    else:
-        if args.orientation:
-            logging.warn('--orientation was provided but not needed. '
-                         'Will be discarded.')
-        tract_attribute['orientation'] = guess_orientation(tractogram)
+    tract_attribute['orientation'] = guess_orientation(tractogram)
 
     scores = score_submission(tractogram, tract_attribute,
                               base_dir, basic_bundles_attribs,
