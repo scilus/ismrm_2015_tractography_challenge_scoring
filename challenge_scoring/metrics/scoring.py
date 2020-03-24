@@ -14,12 +14,10 @@ from dipy.segment.clustering import QuickBundles
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
 from dipy.tracking.metrics import length as slength
 
-from tractconverter.formats.tck import TCK
-
 from challenge_scoring import NB_POINTS_RESAMPLE
 from challenge_scoring.io.streamlines import get_tracts_voxel_space_for_dipy, \
-                                       save_tracts_tck_from_dipy_voxel_space, \
-                                       save_valid_connections
+    save_tracts_tck_from_dipy_voxel_space, \
+    save_valid_connections
 from challenge_scoring.metrics.invalid_connections import group_and_assign_ibs
 from challenge_scoring.metrics.valid_connections import auto_extract_VCs
 
@@ -45,8 +43,8 @@ def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
 
         # Already resample to avoid doing it for each iteration of chunking
         orig_strl = [s for s in get_tracts_voxel_space_for_dipy(
-                        os.path.join(bundles_dir, bundle_f),
-                        ref_anat_fname, dummy_attribs)]
+            os.path.join(bundles_dir, bundle_f),
+            ref_anat_fname, dummy_attribs)]
 
         resamp_bundle = set_number_of_points(orig_strl, NB_POINTS_RESAMPLE)
         resamp_bundle = [s.astype('f4') for s in resamp_bundle]
@@ -100,8 +98,8 @@ def score_submission(streamlines_fname,
     base_data_dir : string
         path to the direction containing the scoring data.
     basic_bundles_attribs : dictionary
-        contains the attributes of the basic bundles (name, list of streamlines,
-        segmentation threshold)
+        contains the attributes of the basic bundles
+        (name, list of streamlines, segmentation threshold)
     save_full_vc : bool
         indicates if the full set of VC will be saved in an individual file.
     save_full_ic : bool
@@ -165,7 +163,8 @@ def score_submission(streamlines_fname,
     logging.debug("Starting IC, IB scoring")
 
     total_strl_count = len(full_strl)
-    candidate_ic_strl_indices = sorted(set(range(total_strl_count)) - VC_indices)
+    candidate_ic_strl_indices = sorted(
+        set(range(total_strl_count)) - VC_indices)
 
     candidate_ic_streamlines = []
     rejected_streamlines = []
@@ -180,19 +179,21 @@ def score_submission(streamlines_fname,
         else:
             rejected_streamlines.append(full_strl[idx].astype('f4'))
 
-    logging.debug('Found {} candidate IC'.format(len(candidate_ic_streamlines)))
-    logging.debug('Found {} streamlines that were too short'.format(len(rejected_streamlines)))
+    logging.debug('Found {} candidate IC'.format(
+        len(candidate_ic_streamlines)))
+    logging.debug('Found {} streamlines that were too short'.format(
+        len(rejected_streamlines)))
 
     ic_counts = 0
     nb_ib = 0
 
     if len(candidate_ic_streamlines):
         additional_rejected, ic_counts, nb_ib = group_and_assign_ibs(
-                                                   candidate_ic_streamlines,
-                                                   ROIs, save_IBs, save_full_ic,
-                                                   segmented_out_dir,
-                                                   segmented_base_name,
-                                                   ref_anat_fname)
+            candidate_ic_streamlines,
+            ROIs, save_IBs, save_full_ic,
+            segmented_out_dir,
+            segmented_base_name,
+            ref_anat_fname)
 
         rejected_streamlines.extend(additional_rejected)
 
@@ -202,17 +203,20 @@ def score_submission(streamlines_fname,
     if len(rejected_streamlines) > 0 and save_full_nc:
         out_nc_fname = os.path.join(segmented_out_dir,
                                     '{}_NC.tck'.format(segmented_base_name))
-        out_file = TCK.create(out_nc_fname)
-        save_tracts_tck_from_dipy_voxel_space(out_file, ref_anat_fname,
+        save_tracts_tck_from_dipy_voxel_space(out_nc_fname, ref_anat_fname,
                                               rejected_streamlines)
 
     VC /= total_strl_count
-    IC = (len(candidate_ic_strl_indices) - len(rejected_streamlines)) / total_strl_count
+    IC = (len(candidate_ic_strl_indices) -
+          len(rejected_streamlines)) / total_strl_count
     NC = len(rejected_streamlines) / total_strl_count
     VCWP = 0
 
-    nb_VB_found = [v['nb_streamlines'] > 0 for k, v in found_vbs_info.iteritems()].count(True)
-    streamlines_per_bundle = {k: v['nb_streamlines'] for k, v in found_vbs_info.iteritems() if v['nb_streamlines'] > 0}
+    nb_VB_found = [v['nb_streamlines'] > 0 for k,
+                   v in found_vbs_info.items()].count(True)
+    streamlines_per_bundle = {
+        k: v['nb_streamlines']
+        for k, v in found_vbs_info.items() if v['nb_streamlines'] > 0}
 
     scores = {}
     scores['version'] = 2
@@ -227,15 +231,20 @@ def score_submission(streamlines_fname,
     scores['total_streamlines_count'] = total_strl_count
 
     # Get bundle overlap, overreach and f1-score for each bundle.
-    scores['overlap_per_bundle'] = {k: v["overlap"] for k, v in found_vbs_info.items()}
-    scores['overreach_per_bundle'] = {k: v["overreach"] for k, v in found_vbs_info.items()}
-    scores['overreach_norm_gt_per_bundle'] = {k: v["overreach_norm"] for k, v in found_vbs_info.items()}
-    scores['f1_score_per_bundle'] = {k: v["f1_score"] for k, v in found_vbs_info.items()}
+    scores['overlap_per_bundle'] = {k: v["overlap"]
+                                    for k, v in found_vbs_info.items()}
+    scores['overreach_per_bundle'] = {k: v["overreach"]
+                                      for k, v in found_vbs_info.items()}
+    scores['overreach_norm_gt_per_bundle'] = {
+        k: v["overreach_norm"] for k, v in found_vbs_info.items()}
+    scores['f1_score_per_bundle'] = {k: v["f1_score"]
+                                     for k, v in found_vbs_info.items()}
 
     # Compute average bundle overlap, overreach and f1-score.
     scores['mean_OL'] = np.mean(list(scores['overlap_per_bundle'].values()))
     scores['mean_OR'] = np.mean(list(scores['overreach_per_bundle'].values()))
-    scores['mean_ORn'] = np.mean(list(scores['overreach_norm_gt_per_bundle'].values()))
+    scores['mean_ORn'] = np.mean(
+        list(scores['overreach_norm_gt_per_bundle'].values()))
     scores['mean_F1'] = np.mean(list(scores['f1_score_per_bundle'].values()))
 
     return scores

@@ -7,16 +7,17 @@ from glob import glob
 import os
 
 try:
-  import numpy
+    import numpy
 except ImportError as e:
     e.args += ("Try running pip install numpy",)
     raise e
 
 try:
-  import scipy
+    import scipy
 except ImportError as e:
     e.args += ("Try running pip install scipy",)
     raise e
+
 
 class deactivate_default_build_ext(build_ext):
 
