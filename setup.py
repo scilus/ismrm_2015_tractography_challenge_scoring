@@ -60,5 +60,6 @@ setup(name='ismrm_2015_tractography_challenge_scoring', version='1.0.1',
       ext_modules=ext_modules, author='The challenge team',
       author_email='jean-christophe.houde@usherbrooke.ca',
       scripts=glob('scripts/*.py'), install_requires=dependencies,
-      cmdclass={'build_ext': deactivate_default_build_ext,
-                'build_all': build_inplace_all_ext})
+      cmdclass={'build_ext': build_inplace_all_ext,
+                'build_all': build_inplace_all_ext,
+                'develop': build_inplace_all_ext,})
