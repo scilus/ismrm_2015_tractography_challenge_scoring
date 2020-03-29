@@ -8,7 +8,6 @@ import logging
 import os
 
 from challenge_scoring.io.results import save_results
-from challenge_scoring.io.streamlines import guess_orientation
 from challenge_scoring.metrics.scoring import score_submission
 from challenge_scoring.utils.attributes import load_attribs
 from challenge_scoring.utils.filenames import mkdir
@@ -98,7 +97,6 @@ def main():
     if not os.path.isdir(base_dir):
         parser.error('"{0}" must be a directory!'.format(base_dir))
 
-    out_dir = mkdir(out_dir + "/").replace("//", "/")
     scores_dir = mkdir(os.path.join(out_dir, "scores"))
     scores_filename = os.path.join(scores_dir,
                                    os.path.splitext(
@@ -120,6 +118,7 @@ def main():
         segments_dir = mkdir(os.path.join(out_dir, "segmented"))
         base_name = os.path.splitext(os.path.basename(tractogram))[0]
 
+        # TODO: Add output format (TCK vs TRK), or infer from input files ?
         segmented_files = glob.glob(os.path.join(segments_dir,
                                                  base_name + '*.tck'))
 
@@ -143,11 +142,7 @@ def main():
 
     basic_bundles_attribs = load_attribs(gt_bundles_attribs_path)
 
-    # Check and compute orientation attribute for the submitted tractogram
-    tract_attribute = {'orientation': 'unknown'}
-    tract_attribute['orientation'] = guess_orientation(tractogram)
-
-    scores = score_submission(tractogram, tract_attribute,
+    scores = score_submission(tractogram,
                               base_dir, basic_bundles_attribs,
                               args.save_full_vc,
                               args.save_full_ic,

@@ -28,7 +28,6 @@ def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
     #                           'threshold': thres_value,
     #                           'streamlines': list_of_streamlines}
 
-    dummy_attribs = {'orientation': 'LPS'}
     qb = QuickBundles(20, metric=AveragePointwiseEuclideanMetric())
 
     ref_bundles = []
@@ -44,7 +43,7 @@ def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
         # Already resample to avoid doing it for each iteration of chunking
         orig_strl = [s for s in get_tracts_voxel_space_for_dipy(
             os.path.join(bundles_dir, bundle_f),
-            ref_anat_fname, dummy_attribs)]
+            ref_anat_fname)]
 
         resamp_bundle = set_number_of_points(orig_strl, NB_POINTS_RESAMPLE)
         resamp_bundle = [s.astype('f4') for s in resamp_bundle]
@@ -64,7 +63,6 @@ def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
 
 
 def score_submission(streamlines_fname,
-                     tracts_attribs,
                      base_data_dir,
                      basic_bundles_attribs,
                      save_full_vc=False,
@@ -92,9 +90,6 @@ def score_submission(streamlines_fname,
     ------------
     streamlines_fname : string
         path to the file containing the streamlines.
-    tracts_attribs : dictionary
-        contains the attributes of the submission. Must contain the
-        'orientation' attribute for .vtk files.
     base_data_dir : string
         path to the direction containing the scoring data.
     basic_bundles_attribs : dictionary
@@ -145,10 +140,10 @@ def score_submission(streamlines_fname,
                                            ref_anat_fname)
 
     streamlines_gen = get_tracts_voxel_space_for_dipy(streamlines_fname,
-                                                      ref_anat_fname,
-                                                      tracts_attribs)
+                                                      ref_anat_fname)
 
     # Load all streamlines, since streamlines is a generator.
+    # TODO: Not sure if needed anymore. Use tractogram insteam of streamlines
     full_strl = [s for s in streamlines_gen]
 
     # Extract VCs and VBs
