@@ -47,31 +47,26 @@ def buildArgsParser():
     p = argparse.ArgumentParser(description=DESCRIPTION,
                                 formatter_class=argparse.RawTextHelpFormatter)
 
-    p.add_argument('tractogram', action='store',
-                   metavar='TRACTS', type=str, help='Tractogram file')
-
-    p.add_argument('base_dir', action='store',
-                   metavar='BASE_DIR', type=str,
+    p.add_argument('tractogram', metavar='TRACTS', type=str,
+                   help='Tractogram file')
+    p.add_argument('base_dir', metavar='BASE_DIR', type=str,
                    help='base directory for scoring data.\n'
                         'See www.tractometer.org/downloads/downloads/'
                         'scoring_data_tractography_challenge.tar.gz')
-
-    p.add_argument('out_dir',    action='store',
-                   metavar='OUT_DIR',  type=str,
+    p.add_argument('out_dir', metavar='OUT_DIR', type=str,
                    help='directory where to send score files')
-
+    p.add_argument('--out_tract_type', choices=['tck', 'trk'], default='tck',
+                   help='output type for tracts')
     p.add_argument('--save_full_vc', action='store_true',
                    help='save one file containing all VCs')
     p.add_argument('--save_full_ic', action='store_true',
                    help='save one file containing all ICs')
     p.add_argument('--save_full_nc', action='store_true',
                    help='save one file containing all NCs')
-
     p.add_argument('--save_ib', action='store_true',
                    help='save IB independently.')
     p.add_argument('--save_vb', action='store_true',
                    help='save VB independently.')
-
     p.add_argument('-f', dest='force', action='store_true',
                    required=False, help='overwrite output files')
     p.add_argument('-v', dest='verbose', action='store_true',
@@ -118,9 +113,9 @@ def main():
         segments_dir = mkdir(os.path.join(out_dir, "segmented"))
         base_name = os.path.splitext(os.path.basename(tractogram))[0]
 
-        # TODO: Add output format (TCK vs TRK), or infer from input files ?
-        segmented_files = glob.glob(os.path.join(segments_dir,
-                                                 base_name + '*.tck'))
+        segmented_files = glob.glob(os.path.join(
+            segments_dir, '{}*.{}'.format(
+                base_name, args.out_tract_type)))
 
     if score_exists or len(segmented_files):
         if not args.force:
@@ -133,7 +128,7 @@ def main():
             for f in segmented_files:
                 os.remove(f)
 
-    # Basic bundle attributes should be stored in the scoring data directory.
+    # TODO: Basic bundle attributes should be stored in the scoring data directory.
     gt_bundles_attribs_path = os.path.join(args.base_dir,
                                            'gt_bundles_attributes.json')
     if not os.path.isfile(gt_bundles_attribs_path):
@@ -148,7 +143,8 @@ def main():
                               args.save_full_ic,
                               args.save_full_nc,
                               args.save_ib, args.save_vb,
-                              segments_dir, base_name, args.verbose)
+                              segments_dir, base_name,
+                              args.out_tract_type, args.verbose)
 
     if scores is not None:
         save_results(scores_filename, scores)

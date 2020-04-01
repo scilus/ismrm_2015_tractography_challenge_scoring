@@ -3,16 +3,12 @@
 
 import os
 
-import numpy as np
-
 from dipy.io.streamline import load_tractogram, save_tractogram
 from dipy.io.stateful_tractogram import (
     Origin, Space, StatefulTractogram)
 
 
-# TODO: Change name
-# TODO: Return tractogram
-def _get_tracts_over_grid(
+def get_tractogram_in_voxel_space(
     tract_fname,
     ref_anat_fname,
     origin=Origin.NIFTI
@@ -20,97 +16,96 @@ def _get_tracts_over_grid(
     sft = load_tractogram(
         tract_fname, ref_anat_fname, to_space=Space.VOX, to_origin=origin,
         bbox_valid_check=False)
-    return sft.streamlines
+    return sft
 
 
-# TODO: Change name
-def get_tracts_voxel_space_for_dipy(
-    tract_fname, ref_anat_fname,
+def save_tracts_from_voxel_space(
+    tract_fname, ref_anat_fname, tracts,
+    data_per_streamline=None, data_per_point=None
 ):
-    return _get_tracts_over_grid(
-        tract_fname, ref_anat_fname)
-
-
-# TODO: Change "tck" to tracts
-def save_tracts_tck_from_dipy_voxel_space(
-    tract_fname, ref_anat_fname, tracts
-):
-    # TODO: Save streamline data
-    sft = StatefulTractogram(tracts, ref_anat_fname, Space.VOX)
+    # TODO?: Add a warning if saving a TCK with data per streamline/point
+    sft = StatefulTractogram(
+        tracts, ref_anat_fname, Space.VOX,
+        data_per_streamline=data_per_streamline, data_per_point=data_per_point)
     save_tractogram(sft, tract_fname, bbox_valid_check=False)
 
 
-# TODO: Use tractograms instead of streamlines to keep data
-def save_valid_connections(extracted_vb_info, streamlines,
+def save_valid_connections(extracted_vb_info, tractogram,
                            segmented_out_dir, basename, ref_anat_fname,
-                           save_vbs=False, save_full_vc=False):
+                           out_tract_type, save_vbs=False, save_full_vc=False):
 
     if not save_vbs and not save_full_vc:
         return
 
-    full_vcs = []
+    full_vcs_idx = []
+
     for bundle_name, bundle_info in extracted_vb_info.items():
-        # TODO: Make output agnostic for tck/trk
         if bundle_info['nb_streamlines'] > 0:
             out_fname = os.path.join(segmented_out_dir, basename +
-                                     '_VB_{0}.tck'.format(bundle_name))
+                                     '_VB_{}.{}'.format(
+                                         bundle_name, out_tract_type))
 
-            # TODO: Remove loops if possible
-            vc_strl = [streamlines[idx]
-                       for idx in bundle_info['streamlines_indices']]
+            idx = list(bundle_info['streamlines_indices'])
 
             if save_full_vc:
-                full_vcs.extend(vc_strl)
+                full_vcs_idx.extend(idx)
 
             if save_vbs:
-                save_tracts_tck_from_dipy_voxel_space(
-                    out_fname, ref_anat_fname, vc_strl)
+                vc_strl = tractogram.streamlines[idx]
+                vc_dps = tractogram.data_per_streamline[idx]
+                vc_dpp = tractogram.data_per_point[idx]
+                save_tracts_from_voxel_space(
+                    out_fname, ref_anat_fname,
+                    vc_strl, vc_dps, vc_dpp)
 
-    if save_full_vc and len(full_vcs):
-        # TODO: Make output agnostic for tck/trk
-        out_name = os.path.join(segmented_out_dir, basename + '_VC.tck')
-        save_tracts_tck_from_dipy_voxel_space(out_name,
-                                              ref_anat_fname,
-                                              full_vcs)
+    if save_full_vc and len(full_vcs_idx):
+        out_name = os.path.join(
+            segmented_out_dir, basename + '_VC.{}'.format(out_tract_type))
+        full_vcs = tractogram.streamlines[full_vcs_idx]
+        full_vc_dps = tractogram.data_per_streamline[full_vcs_idx]
+        full_vc_dpp = tractogram.data_per_point[full_vcs_idx]
+        save_tracts_from_voxel_space(out_name, ref_anat_fname,
+                                     full_vcs, full_vc_dps, full_vc_dpp)
 
 
-# TODO: Use tractograms instead of streamlines to keep data
-# TODO: Uniformize with `save_valid_connections`
-def save_invalid_connections(ib_info, streamlines, ic_clusters,
+def save_invalid_connections(ib_info, tractogram, ic_clusters,
                              out_segmented_dir, base_name,
-                             ref_anat_fname,
+                             ref_anat_fname, out_tract_type,
                              save_full_ic=False, save_ibs=False):
+
     # ib_info is a dictionary containing all the pairs of ROIs that were
     # assigned to some IB. The value of each element is a list containing the
     # clusters indices of clusters that were assigned to that ROI pair.
     if not save_full_ic and not save_ibs:
         return
 
-    full_ic = []
+    full_ic_idx = []
 
-    # TODO: Remove loops if possible and use meaningful variable names
     for k, v in ib_info.items():
-        out_strl = []
+        idx = []
         for c_idx in v:
-            out_strl.extend([s for s in np.array(streamlines)[
-                ic_clusters[c_idx].indices]])
+            idx.extend(ic_clusters[c_idx].indices)
 
+        out_strl = tractogram.streamlines[idx]
+        out_dps = tractogram.data_per_streamline[idx]
+        out_dpp = tractogram.data_per_point[idx]
         if save_ibs:
-            # TODO: Make output agnostic for tck/trk
             out_fname = os.path.join(out_segmented_dir,
                                      base_name +
-                                     '_IB_{0}_{1}.tck'.format(k[0], k[1]))
+                                     '_IB_{0}_{1}.{2}'.format(
+                                         k[0], k[1], out_tract_type))
 
-            save_tracts_tck_from_dipy_voxel_space(out_fname, ref_anat_fname,
-                                                  out_strl)
+            save_tracts_from_voxel_space(out_fname, ref_anat_fname, out_strl,
+                                         out_dps, out_dpp)
 
         if save_full_ic:
-            full_ic.extend(out_strl)
+            full_ic_idx.extend(idx)
 
-    if save_full_ic and len(full_ic):
-        # TODO: Make output agnostic for tck/trk
-        out_name = os.path.join(out_segmented_dir, base_name + '_IC.tck')
-
-        save_tracts_tck_from_dipy_voxel_space(out_name,
-                                              ref_anat_fname,
-                                              full_ic)
+    if save_full_ic and len(full_ic_idx):
+        out_name = os.path.join(out_segmented_dir,
+                                base_name + '_IC.{}'.format(out_tract_type))
+        full_ic_strl = tractogram.streamlines[full_ic_idx]
+        full_ic_dps = tractogram.data_per_streamline[full_ic_idx]
+        full_ic_dpp = tractogram.data_per_point[full_ic_idx]
+        save_tracts_from_voxel_space(out_name, ref_anat_fname, full_ic_strl,
+                                     full_ic_dps, full_ic_dpp)
