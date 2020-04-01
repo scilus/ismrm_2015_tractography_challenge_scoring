@@ -74,10 +74,9 @@ def get_closest_roi_pairs_for_all_streamlines(streamlines, rois):
     Find the closest pair of ROIs from the endpoints of each provided
     streamline.
 
-    # TODO params
-    :param streamlines:
-    :param rois:
-    :return:
+    :param streamlines: list of streamlines to assign rois to
+    :param rois: list of pairs of roi "names" and data
+    :return: list of pairs of the closest regions for each bundle head and tail
     """
 
     # Needs to be 2D for cdist

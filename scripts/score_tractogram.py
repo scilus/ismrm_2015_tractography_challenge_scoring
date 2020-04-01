@@ -128,7 +128,7 @@ def main():
             for f in segmented_files:
                 os.remove(f)
 
-    # TODO: Basic bundle attributes should be stored in the scoring data directory.
+    # Basic bundle attributes should be stored in the scoring data directory.
     gt_bundles_attribs_path = os.path.join(args.base_dir,
                                            'gt_bundles_attributes.json')
     if not os.path.isfile(gt_bundles_attribs_path):
