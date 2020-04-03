@@ -31,7 +31,7 @@ downloaded, go inside the ```ismrm_2015_tractography_challenge_scoring```
 directory, and run
 
 ```bash
-python setup.py
+python setup.py build_ext install
 ```
 
 Once those steps are all done, the system is configured.
