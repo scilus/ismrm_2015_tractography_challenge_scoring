@@ -15,7 +15,7 @@ def get_tractogram_in_voxel_space(
 ):
     sft = load_tractogram(
         tract_fname, ref_anat_fname, to_space=Space.VOX, to_origin=origin,
-        bbox_valid_check=False)
+        bbox_valid_check=False, trk_header_check=False)
     return sft
 
 
