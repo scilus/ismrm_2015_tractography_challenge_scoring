@@ -24,7 +24,6 @@ it is not mandatory. Once setup, run
 
 ```bash
 pip install -r requirements.txt
-pip install -r requirements_additional.txt
 ```
 
 You can then clone or download the scoring system. Once cloned or
@@ -32,7 +31,7 @@ downloaded, go inside the ```ismrm_2015_tractography_challenge_scoring```
 directory, and run
 
 ```bash
-python setup.py build_all
+python setup.py build_ext install
 ```
 
 Once those steps are all done, the system is configured.
