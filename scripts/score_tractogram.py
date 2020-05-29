@@ -8,6 +8,7 @@ import logging
 import os
 
 from challenge_scoring.io.results import save_results
+from challenge_scoring.io.streamlines import format_needs_orientation
 from challenge_scoring.metrics.scoring import score_submission
 from challenge_scoring.utils.attributes import load_attribs
 from challenge_scoring.utils.filenames import mkdir
@@ -55,6 +56,9 @@ def buildArgsParser():
                         'scoring_data_tractography_challenge.tar.gz')
     p.add_argument('out_dir', metavar='OUT_DIR', type=str,
                    help='directory where to send score files')
+    p.add_argument('--orientation', action='store',
+                   choices=['RAS', 'LPS'],
+                   help='Orientation of the streamlines file. Needed for VTK.')
     p.add_argument('--out_tract_type', choices=['tck', 'trk'], default='tck',
                    help='output type for tracts')
     p.add_argument('--save_full_vc', action='store_true',
@@ -137,7 +141,18 @@ def main():
 
     basic_bundles_attribs = load_attribs(gt_bundles_attribs_path)
 
-    scores = score_submission(tractogram,
+    # Check and compute orientation attribute for the submitted tractogram
+    tract_attribute = {'orientation': 'unknown'}
+    if format_needs_orientation(tractogram):
+        if not args.orientation:
+            parser.error('--orientation is needed for your tractogram format')
+        tract_attribute['orientation'] = args.orientation
+    else:
+        if args.orientation:
+            logging.warning('--orientation was provided but not needed. '
+                            'Will be discarded.')
+
+    scores = score_submission(tractogram, tract_attribute,
                               base_dir, basic_bundles_attribs,
                               args.save_full_vc,
                               args.save_full_ic,

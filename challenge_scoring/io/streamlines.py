@@ -6,16 +6,30 @@ import os
 from dipy.io.streamline import load_tractogram, save_tractogram
 from dipy.io.stateful_tractogram import (
     Origin, Space, StatefulTractogram)
+from dipy.io.vtk import load_vtk_streamlines
+
+
+def format_needs_orientation(tract_fname):
+    _, extension = os.path.splitext(tract_fname)
+    return extension in ['.vtk', '.fib']
 
 
 def get_tractogram_in_voxel_space(
     tract_fname,
     ref_anat_fname,
+    tracts_attribs={'orientation': 'unknown'},
     origin=Origin.NIFTI
 ):
-    sft = load_tractogram(
-        tract_fname, ref_anat_fname, to_space=Space.VOX, to_origin=origin,
-        bbox_valid_check=False, trk_header_check=False)
+    if tracts_attribs['orientation'] != 'unknown':
+        to_lps = tracts_attribs['orientation'] == 'LPS'
+        streamlines = load_vtk_streamlines(tract_fname, to_lps)
+        sft = StatefulTractogram(streamlines, ref_anat_fname, Space.RASMM)
+    else:
+        sft = load_tractogram(
+            tract_fname, ref_anat_fname,
+            bbox_valid_check=False, trk_header_check=False)
+    sft.to_vox()
+    sft.to_origin(origin)
     return sft
 
 
@@ -23,7 +37,6 @@ def save_tracts_from_voxel_space(
     tract_fname, ref_anat_fname, tracts,
     data_per_streamline=None, data_per_point=None
 ):
-    # TODO?: Add a warning if saving a TCK with data per streamline/point
     sft = StatefulTractogram(
         tracts, ref_anat_fname, Space.VOX,
         data_per_streamline=data_per_streamline, data_per_point=data_per_point)
