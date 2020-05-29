@@ -65,6 +65,7 @@ def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
 
 
 def score_submission(streamlines_fname,
+                     tracts_attribs,
                      base_data_dir,
                      basic_bundles_attribs,
                      save_full_vc=False,
@@ -93,6 +94,9 @@ def score_submission(streamlines_fname,
     ------------
     streamlines_fname : string
         path to the file containing the streamlines.
+    tracts_attribs : dictionary
+        contains the attributes of the submission. Must contain the
+        'orientation' attribute for .vtk files.
     base_data_dir : string
         path to the direction containing the scoring data.
     basic_bundles_attribs : dictionary
@@ -143,7 +147,8 @@ def score_submission(streamlines_fname,
                                            ref_anat_fname)
 
     tractogram = get_tractogram_in_voxel_space(streamlines_fname,
-                                               ref_anat_fname)
+                                               ref_anat_fname,
+                                               tracts_attribs)
 
     full_strl = tractogram.streamlines
 
