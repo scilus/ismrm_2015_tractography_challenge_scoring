@@ -159,7 +159,7 @@ def group_and_assign_ibs(tractogram, candidate_ids, ROIs,
             rejected_indices.append(c.indices[0])
 
     if save_ibs or save_full_ic:
-        save_invalid_connections(ib_pairs, tractogram,
+        save_invalid_connections(ib_pairs, candidate_ids, tractogram,
                                  clusters, out_segmented_dir,
                                  base_name,
                                  ref_anat_fname,
