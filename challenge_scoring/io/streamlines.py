@@ -105,6 +105,7 @@ def save_invalid_connections(ib_info, id_invalids, tractogram, ic_clusters,
         out_strl = tractogram.streamlines[invalid_idx]
         out_dps = tractogram.data_per_streamline[invalid_idx]
         out_dpp = tractogram.data_per_point[invalid_idx]
+
         if save_ibs:
             out_fname = os.path.join(out_segmented_dir,
                                      base_name +
