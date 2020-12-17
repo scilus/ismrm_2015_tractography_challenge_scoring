@@ -48,13 +48,13 @@ def buildArgsParser():
     p = argparse.ArgumentParser(description=DESCRIPTION,
                                 formatter_class=argparse.RawTextHelpFormatter)
 
-    p.add_argument('tractogram', metavar='TRACTS', type=str,
+    p.add_argument('tractogram', metavar='TRACTS',
                    help='Tractogram file')
-    p.add_argument('base_dir', metavar='BASE_DIR', type=str,
+    p.add_argument('base_dir', metavar='BASE_DIR',
                    help='base directory for scoring data.\n'
                         'See www.tractometer.org/downloads/downloads/'
                         'scoring_data_tractography_challenge.tar.gz')
-    p.add_argument('out_dir', metavar='OUT_DIR', type=str,
+    p.add_argument('out_dir', metavar='OUT_DIR',
                    help='directory where to send score files')
     p.add_argument('--orientation', action='store',
                    choices=['RAS', 'LPS'],
