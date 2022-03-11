@@ -81,7 +81,7 @@ def save_valid_connections(extracted_vb_info, tractogram,
                                      full_vcs, full_vc_dps, full_vc_dpp)
 
 
-def save_invalid_connections(ib_info, tractogram, ic_clusters,
+def save_invalid_connections(ib_info, id_invalids, tractogram, ic_clusters,
                              out_segmented_dir, base_name,
                              ref_anat_fname, out_tract_type,
                              save_full_ic=False, save_ibs=False):
@@ -93,15 +93,19 @@ def save_invalid_connections(ib_info, tractogram, ic_clusters,
         return
 
     full_ic_idx = []
-
     for k, v in ib_info.items():
         idx = []
         for c_idx in v:
             idx.extend(ic_clusters[c_idx].indices)
 
-        out_strl = tractogram.streamlines[idx]
-        out_dps = tractogram.data_per_streamline[idx]
-        out_dpp = tractogram.data_per_point[idx]
+        # Get idx from invalid streamline ids
+        invalid_idx = [id_invalids[i] for i in idx]
+
+        # Get actual invalid streamlines
+        out_strl = tractogram.streamlines[invalid_idx]
+        out_dps = tractogram.data_per_streamline[invalid_idx]
+        out_dpp = tractogram.data_per_point[invalid_idx]
+
         if save_ibs:
             out_fname = os.path.join(out_segmented_dir,
                                      base_name +
@@ -112,7 +116,7 @@ def save_invalid_connections(ib_info, tractogram, ic_clusters,
                                          out_dps, out_dpp)
 
         if save_full_ic:
-            full_ic_idx.extend(idx)
+            full_ic_idx.extend(invalid_idx)
 
     if save_full_ic and len(full_ic_idx):
         out_name = os.path.join(out_segmented_dir,
