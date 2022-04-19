@@ -8,6 +8,7 @@ import os
 
 import nibabel as nib
 import numpy as np
+from dipy.io.streamline import load_tractogram
 
 from dipy.tracking.streamline import set_number_of_points
 from dipy.segment.clustering import QuickBundles
@@ -15,8 +16,7 @@ from dipy.segment.metric import AveragePointwiseEuclideanMetric
 from dipy.tracking.metrics import length as slength
 
 from challenge_scoring import NB_POINTS_RESAMPLE
-from challenge_scoring.io.streamlines import get_tractogram_in_voxel_space, \
-    save_tracts_from_voxel_space, \
+from challenge_scoring.io.streamlines import save_tracts_from_voxel_space, \
     save_valid_connections
 from challenge_scoring.metrics.invalid_connections import group_and_assign_ibs
 from challenge_scoring.metrics.valid_connections import auto_extract_VCs
@@ -24,11 +24,14 @@ from challenge_scoring.metrics.valid_connections import auto_extract_VCs
 
 def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
                              gt_bundles_attribs, ref_anat_fname):
-
-    # Ref bundles will contain {'name': 'name_of_the_bundle',
-    #                           'threshold': thres_value,
-    #                           'streamlines': list_of_streamlines}
-
+    """
+    Returns
+    -------
+    ref_bundles: list[dict]
+        Each dict will contain {'name': 'name_of_the_bundle',
+                                'threshold': thres_value,
+                                'streamlines': list_of_streamlines}
+    """
     qb = QuickBundles(20, metric=AveragePointwiseEuclideanMetric())
 
     ref_bundles = []
@@ -41,8 +44,11 @@ def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
             raise ValueError(
                 "Missing basic bundle attribs for {0}".format(bundle_f))
 
-        orig_sft = get_tractogram_in_voxel_space(
-            os.path.join(bundles_dir, bundle_f), ref_anat_fname)
+        orig_sft = load_tractogram(
+            os.path.join(bundles_dir, bundle_f), ref_anat_fname,
+            bbox_valid_check=False, trk_header_check=False)
+        orig_sft.to_vox()
+        orig_sft.to_center()
 
         # Already resample to avoid doing it for each iteration of chunking
         orig_strl = orig_sft.streamlines
@@ -65,7 +71,6 @@ def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
 
 
 def score_submission(streamlines_fname,
-                     tracts_attribs,
                      base_data_dir,
                      basic_bundles_attribs,
                      save_full_vc=False,
@@ -141,23 +146,25 @@ def score_submission(streamlines_fname,
     ROIs = [nib.load(os.path.join(rois_dir, f))
             for f in sorted(os.listdir(rois_dir))]
 
+    # Get the dict with 'name', 'threshold' and 'streamlines' for each bundle.
     ref_bundles = _prepare_gt_bundles_info(bundles_dir,
                                            bundles_masks_dir,
                                            basic_bundles_attribs,
                                            ref_anat_fname)
 
-    tractogram = get_tractogram_in_voxel_space(streamlines_fname,
-                                               ref_anat_fname,
-                                               tracts_attribs)
+    sft = load_tractogram(streamlines_fname, ref_anat_fname,
+                          bbox_valid_check=False, trk_header_check=False)
+    sft.to_vox()
+    sft.to_center()
 
-    full_strl = tractogram.streamlines
+    full_strl = sft.streamlines
 
     # Extract VCs and VBs
     VC_indices, found_vbs_info = auto_extract_VCs(full_strl, ref_bundles)
     VC = len(VC_indices)
 
     if save_VBs or save_full_vc:
-        save_valid_connections(found_vbs_info, tractogram, segmented_out_dir,
+        save_valid_connections(found_vbs_info, sft, segmented_out_dir,
                                segmented_base_name, ref_anat_fname,
                                out_tract_type, save_vbs=save_VBs,
                                save_full_vc=save_full_vc)
@@ -191,7 +198,7 @@ def score_submission(streamlines_fname,
 
     if len(candidate_ic_indices):
         additional_rejected_indices, ic_counts, nb_ib = group_and_assign_ibs(
-            tractogram, candidate_ic_indices,
+            sft, candidate_ic_indices,
             ROIs, save_IBs, save_full_ic,
             segmented_out_dir,
             segmented_base_name,
@@ -207,9 +214,9 @@ def score_submission(streamlines_fname,
         out_nc_fname = os.path.join(segmented_out_dir,
                                     '{}_NC.{}'.format(
                                         segmented_base_name, out_tract_type))
-        rejected_streamlines = tractogram.streamlines[rejected_indices]
-        rejected_dps = tractogram.data_per_streamline[rejected_indices]
-        rejected_dpp = tractogram.data_per_point[rejected_indices]
+        rejected_streamlines = sft.streamlines[rejected_indices]
+        rejected_dps = sft.data_per_streamline[rejected_indices]
+        rejected_dpp = sft.data_per_point[rejected_indices]
         save_tracts_from_voxel_space(out_nc_fname, ref_anat_fname,
                                      rejected_streamlines, rejected_dps,
                                      rejected_dpp)

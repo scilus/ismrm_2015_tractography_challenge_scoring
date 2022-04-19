@@ -44,21 +44,18 @@ DESCRIPTION = """
 """
 
 
-def buildArgsParser():
+def build_args_parser():
     p = argparse.ArgumentParser(description=DESCRIPTION,
                                 formatter_class=argparse.RawTextHelpFormatter)
 
     p.add_argument('tractogram', metavar='TRACTS',
-                   help='Tractogram file')
+                   help='Tractogram file. File must be tck or trk.')
     p.add_argument('base_dir', metavar='BASE_DIR',
                    help='base directory for scoring data.\n'
                         'See www.tractometer.org/downloads/downloads/'
                         'scoring_data_tractography_challenge.tar.gz')
     p.add_argument('out_dir', metavar='OUT_DIR',
                    help='directory where to send score files')
-    p.add_argument('--orientation', action='store',
-                   choices=['RAS', 'LPS'],
-                   help='Orientation of the streamlines file. Needed for VTK.')
     p.add_argument('--out_tract_type', choices=['tck', 'trk'], default='tck',
                    help='output type for tracts')
     p.add_argument('--save_full_vc', action='store_true',
@@ -80,7 +77,7 @@ def buildArgsParser():
 
 
 def main():
-    parser = buildArgsParser()
+    parser = build_args_parser()
     args = parser.parse_args()
 
     tractogram = args.tractogram
@@ -92,6 +89,8 @@ def main():
 
     if not os.path.isfile(tractogram):
         parser.error('"{0}" must be a file!'.format(tractogram))
+
+    # toDo check tractogram extension tck or trk
 
     if not os.path.isdir(base_dir):
         parser.error('"{0}" must be a directory!'.format(base_dir))
@@ -141,19 +140,7 @@ def main():
 
     basic_bundles_attribs = load_attribs(gt_bundles_attribs_path)
 
-    # Check and compute orientation attribute for the submitted tractogram
-    tract_attribute = {'orientation': 'unknown'}
-    if format_needs_orientation(tractogram):
-        if not args.orientation:
-            parser.error('--orientation is needed for your tractogram format')
-        tract_attribute['orientation'] = args.orientation
-    else:
-        if args.orientation:
-            logging.warning('--orientation was provided but not needed. '
-                            'Will be discarded.')
-
-    scores = score_submission(tractogram, tract_attribute,
-                              base_dir, basic_bundles_attribs,
+    scores = score_submission(tractogram, base_dir, basic_bundles_attribs,
                               args.save_full_vc,
                               args.save_full_ic,
                               args.save_full_nc,
