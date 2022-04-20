@@ -108,7 +108,6 @@ def auto_extract_VCs(sft, ref_bundles):
     """
     streamlines = sft.streamlines
 
-    VC = 0
     VC_idx = set()
 
     found_vbs_info = {}
@@ -121,7 +120,6 @@ def auto_extract_VCs(sft, ref_bundles):
     chunk_it = 0
 
     nb_bundles = len(ref_bundles)
-    bundles_found = [False] * nb_bundles
 
     logging.debug("Starting scoring VCs")
 
@@ -135,7 +133,7 @@ def auto_extract_VCs(sft, ref_bundles):
                                  (chunk_it + 1) * CHUNK_SIZE]
 
         processed_strl_count += len(strl_chunk)
-        cur_chunk_VC_idx, cur_chunk_IC_idx = set(), set()
+        cur_chunk_VC_idx = set()
 
         # Already resample and run quickbundles on the submission chunk,
         # to avoid doing it at every call of auto_extract
@@ -163,9 +161,6 @@ def auto_extract_VCs(sft, ref_bundles):
             nb_selected_streamlines = len(selected_streamlines_indices)
 
             if nb_selected_streamlines:
-                bundles_found[bundle_idx] = True
-                VC += nb_selected_streamlines
-
                 # Shift indices to match the real number of streamlines
                 global_select_strl_indices = set([v + chunk_it * CHUNK_SIZE
                                                   for v in selected_streamlines_indices])
@@ -174,8 +169,6 @@ def auto_extract_VCs(sft, ref_bundles):
                 vb_info['streamlines_indices'] |= global_select_strl_indices
 
                 VC_idx |= global_select_strl_indices
-            else:
-                global_select_strl_indices = set()
 
         chunk_it += 1
 
