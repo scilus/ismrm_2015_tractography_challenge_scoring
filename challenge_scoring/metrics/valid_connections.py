@@ -21,9 +21,7 @@ CHUNK_SIZE = 5000
 
 
 def auto_extract(model_cluster_map, submission_cluster_map,
-                 number_pts_per_str=NB_POINTS_RESAMPLE,
-                 close_centroids_thr=20,
-                 clean_thr=7.):
+                 close_centroids_thr=20, clean_thr=7.):
     """
     Classifies streamlines to closest ground truth bundle. Submission
     streamlines are already clustered with quickbundles.
@@ -34,14 +32,16 @@ def auto_extract(model_cluster_map, submission_cluster_map,
         The gt cluster's map for a given bundle.
     submission_cluster_map:
         Result of the qb clustering.
-    number_pts_per_str: int
-        Number of points for each streamline.
     close_centroids_thr: int
-        Threshold for this bundle. Each cluster from the submission is compared
-        to the ground truth's centroid(s) and kept if MDF is smaller than
-        close_centroids_thr.
+        Threshold for this bundle. Creates a first classification of close and
+        far sub-clusters in the submission (close_centroids_thr is used as
+        threshold on the MDF of each sub-cluster compared with the ground truth
+        **CENTROID(s)**. Final classification with clean_thr will be performed
+        on close sub-clusters only.
     clean_thr: float
-        Threshold for this bundle. ?
+        Threshold for this bundle. clean_thr is used as threshold on the MDF of
+        each streamline in close clusters compared with the ground truth
+        **STREAMLINES**.
 
     Returns
     -------
@@ -56,15 +56,18 @@ def auto_extract(model_cluster_map, submission_cluster_map,
     centroid_matrix[centroid_matrix > close_centroids_thr] = np.inf
     mins = np.min(centroid_matrix, axis=0)
 
-    close_clusters_ind = np.where(mins != np.inf)[0]
+    # First classification of close / far bundles.
+    # (comparing to centroids with threshold  close_centroids_thr)
+    close_clusters_ind = list(np.where(mins != np.inf)[0])
     close_clusters = [submission_cluster_map[i] for i in close_clusters_ind]
     close_indices_inter = [submission_cluster_map[i].indices
                            for i in close_clusters_ind]
     close_indices = list(chain.from_iterable(close_indices_inter))
 
-    close_streamlines = list(chain(*close_clusters))
-    closer_streamlines = close_streamlines
+    closer_streamlines = list(chain(*close_clusters))
 
+    # Final extraction of VB amongst close clusters.
+    # (comparing to streamlines with threshold clean_thr)
     clean_matrix = bundles_distances_mdf(model_cluster_map.refdata,
                                          closer_streamlines)
 
@@ -72,12 +75,12 @@ def auto_extract(model_cluster_map, submission_cluster_map,
 
     mins = np.min(clean_matrix, axis=0)
 
-    clean_indices = [i for i in np.where(mins != np.inf)[0]]
+    clean_indices = list(np.where(mins != np.inf)[0])
 
-    # Clean indices refer to the streamlines in closer_streamlines,
-    # which are the same as the close_streamlines. Each close_streamline
-    # has a related element in close_indices, for which the value
-    # is the index of the original streamline in the moved_streamlines.
+    # Clean indices refer to the streamlines in closer_streamlines. Each
+    # closer_streamline has a related element in close_indices, for which the
+    # value is the index of the original streamline in the
+    # submission_cluster_map.
     final_selected_indices = [close_indices[idx] for idx in clean_indices]
 
     return final_selected_indices
