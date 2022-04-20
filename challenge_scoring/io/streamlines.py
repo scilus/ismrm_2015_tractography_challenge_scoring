@@ -7,11 +7,6 @@ from dipy.io.streamline import save_tractogram
 from dipy.io.stateful_tractogram import Space, StatefulTractogram
 
 
-def format_needs_orientation(tract_fname):
-    _, extension = os.path.splitext(tract_fname)
-    return extension in ['.vtk', '.fib']
-
-
 def save_tracts_from_voxel_space(
         tract_fname, ref_anat_fname, tracts,
         data_per_streamline=None, data_per_point=None):

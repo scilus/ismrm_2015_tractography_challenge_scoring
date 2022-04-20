@@ -8,7 +8,6 @@ import logging
 import os
 
 from challenge_scoring.io.results import save_results
-from challenge_scoring.io.streamlines import format_needs_orientation
 from challenge_scoring.metrics.scoring import score_submission
 from challenge_scoring.utils.attributes import load_attribs
 from challenge_scoring.utils.filenames import mkdir

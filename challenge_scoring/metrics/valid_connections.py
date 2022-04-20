@@ -6,6 +6,7 @@ from __future__ import division
 import logging
 from itertools import chain
 
+from dipy.io.stateful_tractogram import StatefulTractogram
 from dipy.segment.clustering import QuickBundles
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
 from dipy.tracking.distances import bundles_distances_mdf
@@ -86,14 +87,14 @@ def auto_extract(model_cluster_map, submission_cluster_map,
     return final_selected_indices
 
 
-def auto_extract_VCs(streamlines, ref_bundles):
+def auto_extract_VCs(sft, ref_bundles):
     """
     Extract valid bundles and associated valid streamline indices.
 
     Parameters
     ----------
-    streamlines: list
-        List of all streamlines
+    sft: StatefulTractogram
+        Submission's tractogram.
     ref_bundles: list[dict]
         List of dict with 'name', 'threshold' and 'streamlines' for each
         bundle.
@@ -105,7 +106,7 @@ def auto_extract_VCs(streamlines, ref_bundles):
         Dict with bundle names as keys and, for each, a sub-dict with keys
         'nb_streamlines' and 'streamlines_indices'.
     """
-    # Streamlines =
+    streamlines = sft.streamlines
 
     VC = 0
     VC_idx = set()
@@ -187,12 +188,11 @@ def auto_extract_VCs(streamlines, ref_bundles):
 
         # Streamlines are in voxel space since that's how they were
         # loaded in the scoring function.
-        tractogram = Tractogram(streamlines=(streamlines[i] for i in vb_info['streamlines_indices']),
-                                affine_to_rasmm=bundle_mask.affine)
+        sub_sft = sft[vb_info['streamlines_indices']]
 
         scores = {}
-        if len(tractogram) > 0:
-            scores = compute_bundle_coverage_scores(tractogram, bundle_mask)
+        if len(sub_sft) > 0:
+            scores = compute_bundle_coverage_scores(sub_sft, bundle_mask)
 
         vb_info['overlap'] = scores.get("OL", 0)
         vb_info['overreach'] = scores.get("OR", 0)

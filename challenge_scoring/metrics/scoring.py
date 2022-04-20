@@ -30,7 +30,9 @@ def _prepare_gt_bundles_info(bundles_dir, bundles_masks_dir,
     ref_bundles: list[dict]
         Each dict will contain {'name': 'name_of_the_bundle',
                                 'threshold': thres_value,
-                                'streamlines': list_of_streamlines}
+                                'streamlines': list_of_streamlines},
+                                'cluster_map': the qb cluster map,
+                                'mask': the loaded bundle mask (nifti).}
     """
     qb = QuickBundles(20, metric=AveragePointwiseEuclideanMetric())
 
@@ -145,7 +147,8 @@ def score_submission(streamlines_fname,
     ROIs = [nib.load(os.path.join(rois_dir, f))
             for f in sorted(os.listdir(rois_dir))]
 
-    # Get the dict with 'name', 'threshold' and 'streamlines' for each bundle.
+    # Get the dict with 'name', 'threshold', 'streamlines',
+    # 'cluster_map' and 'mask' for each bundle.
     ref_bundles = _prepare_gt_bundles_info(bundles_dir,
                                            bundles_masks_dir,
                                            basic_bundles_attribs,
@@ -158,8 +161,8 @@ def score_submission(streamlines_fname,
 
     full_strl = sft.streamlines
 
-    # Extract VCs and VBs
-    VC_indices, found_vbs_info = auto_extract_VCs(full_strl, ref_bundles)
+    # Extract VCs and VBs, compute OL, OR, f1 for each.
+    VC_indices, found_vbs_info = auto_extract_VCs(sft, ref_bundles)
     VC = len(VC_indices)
 
     if save_VBs or save_full_vc:
