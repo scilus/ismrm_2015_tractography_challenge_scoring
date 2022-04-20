@@ -99,9 +99,6 @@ def score_submission(streamlines_fname,
     ------------
     streamlines_fname : string
         path to the file containing the streamlines.
-    tracts_attribs : dictionary
-        contains the attributes of the submission. Must contain the
-        'orientation' attribute for .vtk files.
     base_data_dir : string
         path to the direction containing the scoring data.
     basic_bundles_attribs : dictionary
@@ -123,6 +120,8 @@ def score_submission(streamlines_fname,
         the path to the directory where segmented files will be saved.
     segmented_base_name : string
         the base name to use for saving segmented files.
+    out_tract_type: str
+        extension for the output tractograms.
     verbose : bool
         indicates if the algorithm needs to be verbose when logging messages.
 

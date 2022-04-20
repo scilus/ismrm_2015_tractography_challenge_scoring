@@ -16,11 +16,37 @@ import numpy as np
 from challenge_scoring import NB_POINTS_RESAMPLE
 from challenge_scoring.metrics.bundle_coverage import compute_bundle_coverage_scores
 
+# todo. See if this could be bigger nowadays.
+CHUNK_SIZE = 5000
+
 
 def auto_extract(model_cluster_map, submission_cluster_map,
                  number_pts_per_str=NB_POINTS_RESAMPLE,
                  close_centroids_thr=20,
                  clean_thr=7.):
+    """
+    Classifies streamlines to closest ground truth bundle. Submission
+    streamlines are already clustered with quickbundles.
+
+    Parameters
+    ----------
+    model_cluster_map:
+        The gt cluster's map for a given bundle.
+    submission_cluster_map:
+        Result of the qb clustering.
+    number_pts_per_str: int
+        Number of points for each streamline.
+    close_centroids_thr: int
+        Threshold for this bundle. Each cluster from the submission is compared
+        to the ground truth's centroid(s) and kept if MDF is smaller than
+        close_centroids_thr.
+    clean_thr: float
+        Threshold for this bundle. ?
+
+    Returns
+    -------
+
+    """
 
     model_centroids = model_cluster_map.centroids
 
@@ -29,10 +55,11 @@ def auto_extract(model_cluster_map, submission_cluster_map,
 
     centroid_matrix[centroid_matrix > close_centroids_thr] = np.inf
     mins = np.min(centroid_matrix, axis=0)
-    close_clusters = [submission_cluster_map[i]
-                      for i in np.where(mins != np.inf)[0]]
+
+    close_clusters_ind = np.where(mins != np.inf)[0]
+    close_clusters = [submission_cluster_map[i] for i in close_clusters_ind]
     close_indices_inter = [submission_cluster_map[i].indices
-                           for i in np.where(mins != np.inf)[0]]
+                           for i in close_clusters_ind]
     close_indices = list(chain.from_iterable(close_indices_inter))
 
     close_streamlines = list(chain(*close_clusters))
@@ -60,7 +87,25 @@ def auto_extract(model_cluster_map, submission_cluster_map,
 
 
 def auto_extract_VCs(streamlines, ref_bundles):
-    # Streamlines = list of all streamlines
+    """
+    Extract valid bundles and associated valid streamline indices.
+
+    Parameters
+    ----------
+    streamlines: list
+        List of all streamlines
+    ref_bundles: list[dict]
+        List of dict with 'name', 'threshold' and 'streamlines' for each
+        bundle.
+
+    Returns
+    -------
+    VC_idx
+    found_vbs_info: dict
+        Dict with bundle names as keys and, for each, a sub-dict with keys
+        'nb_streamlines' and 'streamlines_indices'.
+    """
+    # Streamlines =
 
     VC = 0
     VC_idx = set()
@@ -72,7 +117,6 @@ def auto_extract_VCs(streamlines, ref_bundles):
 
     # Need to bookkeep because we chunk for big datasets
     processed_strl_count = 0
-    chunk_size = 5000
     chunk_it = 0
 
     nb_bundles = len(ref_bundles)
@@ -86,8 +130,8 @@ def auto_extract_VCs(streamlines, ref_bundles):
     while processed_strl_count < len(streamlines):
         logging.debug("Starting chunk: {0}".format(chunk_it))
 
-        strl_chunk = streamlines[chunk_it * chunk_size:
-                                 (chunk_it + 1) * chunk_size]
+        strl_chunk = streamlines[chunk_it * CHUNK_SIZE:
+                                 (chunk_it + 1) * CHUNK_SIZE]
 
         processed_strl_count += len(strl_chunk)
         cur_chunk_VC_idx, cur_chunk_IC_idx, cur_chunk_VCWP_idx = set(), set(), set()
@@ -106,9 +150,9 @@ def auto_extract_VCs(streamlines, ref_bundles):
 
         for bundle_idx, ref_bundle in enumerate(ref_bundles):
             # The selected indices are from [0, len(strl_chunk)]
-            selected_streamlines_indices = auto_extract(ref_bundle['cluster_map'],
-                                                        chunk_cluster_map,
-                                                        clean_thr=ref_bundle['threshold'])
+            selected_streamlines_indices = auto_extract(
+                ref_bundle['cluster_map'], chunk_cluster_map,
+                clean_thr=ref_bundle['threshold'])
 
             # Remove duplicates, when streamlines are assigned to multiple VBs.
             selected_streamlines_indices = set(selected_streamlines_indices) - \
@@ -122,8 +166,8 @@ def auto_extract_VCs(streamlines, ref_bundles):
                 VC += nb_selected_streamlines
 
                 # Shift indices to match the real number of streamlines
-                global_select_strl_indices = set([v + chunk_it * chunk_size
-                                                 for v in selected_streamlines_indices])
+                global_select_strl_indices = set([v + chunk_it * CHUNK_SIZE
+                                                  for v in selected_streamlines_indices])
                 vb_info = found_vbs_info.get(ref_bundle['name'])
                 vb_info['nb_streamlines'] += nb_selected_streamlines
                 vb_info['streamlines_indices'] |= global_select_strl_indices
