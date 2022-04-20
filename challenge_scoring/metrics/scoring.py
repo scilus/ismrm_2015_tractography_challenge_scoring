@@ -227,7 +227,6 @@ def score_submission(streamlines_fname,
     IC = (len(candidate_ic_strl_indices) -
           len(rejected_indices)) / total_strl_count
     NC = len(rejected_indices) / total_strl_count
-    VCWP = 0
 
     nb_VB_found = [v['nb_streamlines'] > 0 for k,
                    v in found_vbs_info.items()].count(True)
@@ -240,7 +239,6 @@ def score_submission(streamlines_fname,
     scores['algo_version'] = 5
     scores['VC'] = VC
     scores['IC'] = IC
-    scores['VCWP'] = VCWP
     scores['NC'] = NC
     scores['VB'] = nb_VB_found
     scores['IB'] = nb_ib

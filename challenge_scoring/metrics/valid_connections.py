@@ -135,7 +135,7 @@ def auto_extract_VCs(sft, ref_bundles):
                                  (chunk_it + 1) * CHUNK_SIZE]
 
         processed_strl_count += len(strl_chunk)
-        cur_chunk_VC_idx, cur_chunk_IC_idx, cur_chunk_VCWP_idx = set(), set(), set()
+        cur_chunk_VC_idx, cur_chunk_IC_idx = set(), set()
 
         # Already resample and run quickbundles on the submission chunk,
         # to avoid doing it at every call of auto_extract
