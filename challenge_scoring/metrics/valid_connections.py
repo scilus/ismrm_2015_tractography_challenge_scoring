@@ -65,11 +65,8 @@ def auto_extract(model_cluster_map, submission_cluster_map,
     close_streamlines = list(chain(*close_clusters))
     closer_streamlines = close_streamlines
 
-    rcloser_streamlines = set_number_of_points(closer_streamlines,
-                                               number_pts_per_str)
-
     clean_matrix = bundles_distances_mdf(model_cluster_map.refdata,
-                                         rcloser_streamlines)
+                                         closer_streamlines)
 
     clean_matrix[clean_matrix > clean_thr] = np.inf
 
