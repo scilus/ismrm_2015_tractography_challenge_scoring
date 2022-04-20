@@ -165,6 +165,10 @@ def score_submission(streamlines_fname,
     VC_indices, found_vbs_info = auto_extract_VCs(sft, ref_bundles)
     VC = len(VC_indices)
 
+    # Making sure the space is still correct after bundle coverage computation.
+    sft.to_vox()
+    sft.to_center()
+
     if save_VBs or save_full_vc:
         save_valid_connections(found_vbs_info, sft, segmented_out_dir,
                                segmented_base_name, ref_anat_fname,
