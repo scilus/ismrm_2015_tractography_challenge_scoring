@@ -188,7 +188,6 @@ def group_and_assign_ibs(sft, candidate_ids, ROIs,
         save_invalid_connections(ib_pairs, candidate_ids, sft,
                                  clusters, out_segmented_dir,
                                  base_name,
-                                 ref_anat_fname,
                                  out_tract_type,
                                  save_full_ic=save_full_ic,
                                  save_ibs=save_ibs)

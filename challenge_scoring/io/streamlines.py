@@ -4,21 +4,30 @@
 import os
 
 from dipy.io.streamline import save_tractogram
-from dipy.io.stateful_tractogram import Space, StatefulTractogram
 
 
-def save_tracts_from_voxel_space(
-        tract_fname, ref_anat_fname, tracts,
-        data_per_streamline=None, data_per_point=None):
-    sft = StatefulTractogram(
-        tracts, ref_anat_fname, Space.VOX,
-        data_per_streamline=data_per_streamline, data_per_point=data_per_point)
-    save_tractogram(sft, tract_fname, bbox_valid_check=False)
-
-
-def save_valid_connections(extracted_vb_info, tractogram,
-                           segmented_out_dir, basename, ref_anat_fname,
+def save_valid_connections(extracted_vb_info, sft,
+                           segmented_out_dir, basename,
                            out_tract_type, save_vbs=False, save_full_vc=False):
+    """
+    Loops on extracted VB and saves them.
+
+    Parameters
+    ----------
+    extracted_vb_info: dict
+        Keys are the bundle names, values are a dict with 'nb_streamlines' and
+        'streamlines_indices'.
+    sft: StatefulTractogram
+        Total submission sft.
+    segmented_out_dir: str
+        Directory.
+    basename: str
+        Prefix
+    out_tract_type: str
+        Extension (.trk or .tck)
+    save_vbs: bool
+    save_full_vc: bool
+    """
 
     if not save_vbs and not save_full_vc:
         return
@@ -37,31 +46,45 @@ def save_valid_connections(extracted_vb_info, tractogram,
                 full_vcs_idx.extend(idx)
 
             if save_vbs:
-                vc_strl = tractogram.streamlines[idx]
-                vc_dps = tractogram.data_per_streamline[idx]
-                vc_dpp = tractogram.data_per_point[idx]
-                save_tracts_from_voxel_space(
-                    out_fname, ref_anat_fname,
-                    vc_strl, vc_dps, vc_dpp)
+                sub_sft = sft[idx]
+                save_tractogram(sub_sft, out_fname)
 
     if save_full_vc and len(full_vcs_idx):
         out_name = os.path.join(
             segmented_out_dir, basename + '_VC.{}'.format(out_tract_type))
-        full_vcs = tractogram.streamlines[full_vcs_idx]
-        full_vc_dps = tractogram.data_per_streamline[full_vcs_idx]
-        full_vc_dpp = tractogram.data_per_point[full_vcs_idx]
-        save_tracts_from_voxel_space(out_name, ref_anat_fname,
-                                     full_vcs, full_vc_dps, full_vc_dpp)
+        sub_sft = sft[full_vcs_idx]
+        save_tractogram(sub_sft, out_name)
 
 
-def save_invalid_connections(ib_info, id_invalids, tractogram, ic_clusters,
-                             out_segmented_dir, base_name,
-                             ref_anat_fname, out_tract_type,
+def save_invalid_connections(ib_info, id_invalids, sft, ic_clusters,
+                             out_segmented_dir, base_name, out_tract_type,
                              save_full_ic=False, save_ibs=False):
+    """
+    Loops on extracted IB and saves them.
 
-    # ib_info is a dictionary containing all the pairs of ROIs that were
-    # assigned to some IB. The value of each element is a list containing the
-    # clusters indices of clusters that were assigned to that ROI pair.
+    Parameters
+    ----------
+    ib_info: dict
+        Dictionary containing all the pairs of ROIs that were assigned to some
+        IB. The value of each element is a list containing the clusters indices
+        of clusters that were assigned to that ROI pair.
+    id_invalids: list
+        List of rejected streamlines.
+    sft: StatefulTractogram
+        Total submission sft
+    ic_clusters: list
+        List of indices for each IB.
+    out_segmented_dir: str
+        Path.
+    base_name: str
+        Prefix
+    out_tract_type:
+        Extension (.tck or .trk)
+    save_full_ic: bool
+    save_ibs: bool
+    """
+
+    # ib_info is a
     if not save_full_ic and not save_ibs:
         return
 
@@ -75,9 +98,7 @@ def save_invalid_connections(ib_info, id_invalids, tractogram, ic_clusters,
         invalid_idx = [id_invalids[i] for i in idx]
 
         # Get actual invalid streamlines
-        out_strl = tractogram.streamlines[invalid_idx]
-        out_dps = tractogram.data_per_streamline[invalid_idx]
-        out_dpp = tractogram.data_per_point[invalid_idx]
+        ib_sft = sft[invalid_idx]
 
         if save_ibs:
             out_fname = os.path.join(out_segmented_dir,
@@ -85,8 +106,7 @@ def save_invalid_connections(ib_info, id_invalids, tractogram, ic_clusters,
                                      '_IB_{0}_{1}.{2}'.format(
                                          k[0], k[1], out_tract_type))
 
-            save_tracts_from_voxel_space(out_fname, ref_anat_fname, out_strl,
-                                         out_dps, out_dpp)
+            save_tractogram(ib_sft, out_fname)
 
         if save_full_ic:
             full_ic_idx.extend(invalid_idx)
@@ -94,8 +114,5 @@ def save_invalid_connections(ib_info, id_invalids, tractogram, ic_clusters,
     if save_full_ic and len(full_ic_idx):
         out_name = os.path.join(out_segmented_dir,
                                 base_name + '_IC.{}'.format(out_tract_type))
-        full_ic_strl = tractogram.streamlines[full_ic_idx]
-        full_ic_dps = tractogram.data_per_streamline[full_ic_idx]
-        full_ic_dpp = tractogram.data_per_point[full_ic_idx]
-        save_tracts_from_voxel_space(out_name, ref_anat_fname, full_ic_strl,
-                                     full_ic_dps, full_ic_dpp)
+        ic_sft = sft[full_ic_idx]
+        save_tractogram(ic_sft, out_name)

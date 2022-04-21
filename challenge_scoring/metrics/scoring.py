@@ -8,16 +8,16 @@ import os
 
 import nibabel as nib
 import numpy as np
-from dipy.io.streamline import load_tractogram
 
+from dipy.io.stateful_tractogram import set_sft_logger_level
+from dipy.io.streamline import load_tractogram, save_tractogram
 from dipy.tracking.streamline import set_number_of_points
 from dipy.segment.clustering import QuickBundles
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
 from dipy.tracking.metrics import length as slength
 
 from challenge_scoring import NB_POINTS_RESAMPLE
-from challenge_scoring.io.streamlines import save_tracts_from_voxel_space, \
-    save_valid_connections
+from challenge_scoring.io.streamlines import save_valid_connections
 from challenge_scoring.metrics.invalid_connections import group_and_assign_ibs
 from challenge_scoring.metrics.valid_connections import auto_extract_VCs
 
@@ -132,12 +132,14 @@ def score_submission(streamlines_fname,
     scores : dict
         dictionnary containing a score for each metric
     """
-
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
+        # Silencing SFT's logger if our logging is in DEBUG mode, because it
+        # typically produces a lot of outputs!
+        set_sft_logger_level('WARNING')
 
     # Prepare needed scoring data
-    logging.debug('Preparing GT data')
+    logging.info('Preparing GT data: Loading and computing centroids')
     masks_dir = os.path.join(base_data_dir, "masks")
     rois_dir = os.path.join(masks_dir, "rois")
     bundles_dir = os.path.join(base_data_dir, "bundles")
@@ -154,6 +156,7 @@ def score_submission(streamlines_fname,
                                            basic_bundles_attribs,
                                            ref_anat_fname)
 
+    logging.info('Loading submission data')
     sft = load_tractogram(streamlines_fname, ref_anat_fname,
                           bbox_valid_check=False, trk_header_check=False)
     sft.to_vox()
@@ -162,20 +165,17 @@ def score_submission(streamlines_fname,
     full_strl = sft.streamlines
 
     # Extract VCs and VBs, compute OL, OR, f1 for each.
+    logging.info("Starting VC, VB scoring")
     VC_indices, found_vbs_info = auto_extract_VCs(sft, ref_bundles)
     VC = len(VC_indices)
 
-    # Making sure the space is still correct after bundle coverage computation.
-    sft.to_vox()
-    sft.to_center()
-
     if save_VBs or save_full_vc:
         save_valid_connections(found_vbs_info, sft, segmented_out_dir,
-                               segmented_base_name, ref_anat_fname,
-                               out_tract_type, save_vbs=save_VBs,
+                               segmented_base_name, out_tract_type,
+                               save_vbs=save_VBs,
                                save_full_vc=save_full_vc)
 
-    logging.debug("Starting IC, IB scoring")
+    logging.info("Starting IC, IB scoring")
 
     total_strl_count = len(full_strl)
     candidate_ic_strl_indices = sorted(
@@ -220,12 +220,8 @@ def score_submission(streamlines_fname,
         out_nc_fname = os.path.join(segmented_out_dir,
                                     '{}_NC.{}'.format(
                                         segmented_base_name, out_tract_type))
-        rejected_streamlines = sft.streamlines[rejected_indices]
-        rejected_dps = sft.data_per_streamline[rejected_indices]
-        rejected_dpp = sft.data_per_point[rejected_indices]
-        save_tracts_from_voxel_space(out_nc_fname, ref_anat_fname,
-                                     rejected_streamlines, rejected_dps,
-                                     rejected_dpp)
+        rejected_sft = sft[rejected_indices]
+        save_tractogram(rejected_sft, out_nc_fname)
 
     VC /= total_strl_count
     IC = (len(candidate_ic_strl_indices) -

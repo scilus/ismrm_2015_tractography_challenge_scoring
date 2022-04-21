@@ -11,7 +11,6 @@ from dipy.segment.clustering import QuickBundles
 from dipy.segment.metric import AveragePointwiseEuclideanMetric
 from dipy.tracking.distances import bundles_distances_mdf
 from dipy.tracking.streamline import set_number_of_points
-from nibabel.streamlines import Tractogram
 import numpy as np
 
 from challenge_scoring import NB_POINTS_RESAMPLE
@@ -51,6 +50,9 @@ def auto_extract(model_cluster_map, submission_cluster_map,
 
     model_centroids = model_cluster_map.centroids
 
+    print('resampled')
+    print(np.mean([len(c) for c in model_centroids]))
+    print(np.mean([len(c) for c in submission_cluster_map.centroids]))
     centroid_matrix = bundles_distances_mdf(model_centroids,
                                             submission_cluster_map.centroids)
 
@@ -106,7 +108,10 @@ def auto_extract_VCs(sft, ref_bundles):
         Dict with bundle names as keys and, for each, a sub-dict with keys
         'nb_streamlines' and 'streamlines_indices'.
     """
-    streamlines = sft.streamlines
+
+    # IMPORTANT. Quickbundles must be computed from center
+    sft.to_vox()
+    sft.to_center()
 
     VC_idx = set()
 
@@ -121,16 +126,14 @@ def auto_extract_VCs(sft, ref_bundles):
 
     nb_bundles = len(ref_bundles)
 
-    logging.debug("Starting scoring VCs")
-
     qb = QuickBundles(threshold=20, metric=AveragePointwiseEuclideanMetric())
 
     # Start loop here for big datasets
-    while processed_strl_count < len(streamlines):
+    while processed_strl_count < len(sft.streamlines):
         logging.debug("Starting chunk: {0}".format(chunk_it))
 
-        strl_chunk = streamlines[chunk_it * CHUNK_SIZE:
-                                 (chunk_it + 1) * CHUNK_SIZE]
+        strl_chunk = sft.streamlines[chunk_it * CHUNK_SIZE:
+                                     (chunk_it + 1) * CHUNK_SIZE]
 
         processed_strl_count += len(strl_chunk)
         cur_chunk_VC_idx = set()
@@ -154,16 +157,17 @@ def auto_extract_VCs(sft, ref_bundles):
                 clean_thr=ref_bundle['threshold'])
 
             # Remove duplicates, when streamlines are assigned to multiple VBs.
-            selected_streamlines_indices = set(selected_streamlines_indices) - \
-                                           cur_chunk_VC_idx
+            selected_streamlines_indices = \
+                set(selected_streamlines_indices) - cur_chunk_VC_idx
             cur_chunk_VC_idx |= selected_streamlines_indices
 
             nb_selected_streamlines = len(selected_streamlines_indices)
 
             if nb_selected_streamlines:
                 # Shift indices to match the real number of streamlines
-                global_select_strl_indices = set([v + chunk_it * CHUNK_SIZE
-                                                  for v in selected_streamlines_indices])
+                global_select_strl_indices = \
+                    set([v + chunk_it * CHUNK_SIZE for v in
+                         selected_streamlines_indices])
                 vb_info = found_vbs_info.get(ref_bundle['name'])
                 vb_info['nb_streamlines'] += nb_selected_streamlines
                 vb_info['streamlines_indices'] |= global_select_strl_indices
@@ -171,6 +175,9 @@ def auto_extract_VCs(sft, ref_bundles):
                 VC_idx |= global_select_strl_indices
 
         chunk_it += 1
+
+    # IMPORTANT. tract_counts_map must be computed from corner!
+    sft.to_corner()
 
     # Compute bundle overlap, overreach and f1_scores and update found_vbs_info
     for bundle_idx, ref_bundle in enumerate(ref_bundles):

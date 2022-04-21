@@ -90,8 +90,9 @@ def main():
         parser.error('"{0}" must be a file!'.format(tractogram))
 
     _, ext = os.path.splitext(tractogram)
-    if not ext == '.tck' or ext == '.trk':
-        parser.error("Tractogram file should be a .tck or .trk.")
+    if not (ext == '.tck' or ext == '.trk'):
+        parser.error("Tractogram file should be a .tck or .trk, not {}"
+                     .format(ext))
 
     if not os.path.isdir(base_dir):
         parser.error('"{0}" must be a directory!'.format(base_dir))
