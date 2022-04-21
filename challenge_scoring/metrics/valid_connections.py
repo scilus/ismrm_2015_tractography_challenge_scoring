@@ -17,7 +17,7 @@ from challenge_scoring import NB_POINTS_RESAMPLE
 from challenge_scoring.metrics.bundle_coverage import compute_bundle_coverage_scores
 
 # todo. See if this could be bigger nowadays.
-CHUNK_SIZE = 5000
+CHUNK_SIZE = 10000
 
 
 def auto_extract(model_cluster_map, submission_cluster_map,
@@ -58,18 +58,20 @@ def auto_extract(model_cluster_map, submission_cluster_map,
     mins = np.min(centroid_matrix, axis=0)
 
     close_clusters_ind = list(np.where(mins != np.inf)[0])
-    close_clusters = [submission_cluster_map[i] for i in close_clusters_ind]
-    close_indices_inter = [submission_cluster_map[i].indices
-                           for i in close_clusters_ind]
-    close_indices = list(chain.from_iterable(close_indices_inter))
 
-    closer_streamlines = list(chain(*close_clusters))
+    if len(close_clusters_ind) > 0:
+        close_clusters_strl_indices = \
+            [submission_cluster_map[i].indices for i in close_clusters_ind]
+        close_clusters_strl = \
+            [submission_cluster_map[i] for i in close_clusters_ind]
 
-    if len(closer_streamlines) > 0:
+        close_str_indices = list(chain(*close_clusters_strl_indices))
+        close_strl = list(chain(*close_clusters_strl))
+
         # Final extraction of VB amongst close clusters.
         # (comparing to streamlines with threshold clean_thr)
         clean_matrix = bundles_distances_mdf(model_cluster_map.refdata,
-                                             closer_streamlines)
+                                             close_strl)
 
         clean_matrix[clean_matrix > clean_thr] = np.inf
         mins = np.min(clean_matrix, axis=0)
@@ -80,7 +82,7 @@ def auto_extract(model_cluster_map, submission_cluster_map,
         # closer_streamline has a related element in close_indices, for which the
         # value is the index of the original streamline in the
         # submission_cluster_map.
-        final_selected_indices = [close_indices[idx] for idx in clean_indices]
+        final_selected_indices = [close_str_indices[idx] for idx in clean_indices]
     else:
         final_selected_indices = []
 
@@ -121,13 +123,14 @@ def auto_extract_VCs(sft, ref_bundles):
     # Need to bookkeep because we chunk for big datasets
     processed_strl_count = 0
     chunk_it = 0
-    nb_chunks = len(sft.streamlines) / CHUNK_SIZE
+    nb_chunks = int(np.ceil(len(sft.streamlines) / CHUNK_SIZE))
 
     nb_bundles = len(ref_bundles)
 
     qb = QuickBundles(threshold=20, metric=AveragePointwiseEuclideanMetric())
 
     # Start loop here for big datasets
+    logging.debug("Starting VC identification through auto_extract")
     while processed_strl_count < len(sft.streamlines):
         logging.debug("Starting chunk: {} / {}".format(chunk_it, nb_chunks))
 
@@ -145,12 +148,9 @@ def auto_extract_VCs(sft, ref_bundles):
         rstreamlines = [s.astype('f4') for s in rstreamlines]
 
         chunk_cluster_map = qb.cluster(rstreamlines)
-        chunk_cluster_map.refdata = strl_chunk
-
-        logging.debug("Starting VC identification through auto_extract")
+        chunk_cluster_map.refdata = rstreamlines
 
         for bundle_idx, ref_bundle in enumerate(ref_bundles):
-            logging.debug("-Bundle {}".format(ref_bundle['name']))
             # The selected indices are from [0, len(strl_chunk)]
             selected_streamlines_indices = auto_extract(
                 ref_bundle['cluster_map'], chunk_cluster_map,
