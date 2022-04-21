@@ -50,9 +50,6 @@ def auto_extract(model_cluster_map, submission_cluster_map,
 
     model_centroids = model_cluster_map.centroids
 
-    print('resampled')
-    print(np.mean([len(c) for c in model_centroids]))
-    print(np.mean([len(c) for c in submission_cluster_map.centroids]))
     centroid_matrix = bundles_distances_mdf(model_centroids,
                                             submission_cluster_map.centroids)
 
