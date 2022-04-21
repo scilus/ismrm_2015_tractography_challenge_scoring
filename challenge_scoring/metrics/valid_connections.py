@@ -47,17 +47,16 @@ def auto_extract(model_cluster_map, submission_cluster_map,
     -------
 
     """
-
     model_centroids = model_cluster_map.centroids
 
+    # First classification of close / far bundles.
+    # (comparing to centroids with threshold  close_centroids_thr)
     centroid_matrix = bundles_distances_mdf(model_centroids,
                                             submission_cluster_map.centroids)
 
     centroid_matrix[centroid_matrix > close_centroids_thr] = np.inf
     mins = np.min(centroid_matrix, axis=0)
 
-    # First classification of close / far bundles.
-    # (comparing to centroids with threshold  close_centroids_thr)
     close_clusters_ind = list(np.where(mins != np.inf)[0])
     close_clusters = [submission_cluster_map[i] for i in close_clusters_ind]
     close_indices_inter = [submission_cluster_map[i].indices
@@ -66,22 +65,24 @@ def auto_extract(model_cluster_map, submission_cluster_map,
 
     closer_streamlines = list(chain(*close_clusters))
 
-    # Final extraction of VB amongst close clusters.
-    # (comparing to streamlines with threshold clean_thr)
-    clean_matrix = bundles_distances_mdf(model_cluster_map.refdata,
-                                         closer_streamlines)
+    if len(closer_streamlines) > 0:
+        # Final extraction of VB amongst close clusters.
+        # (comparing to streamlines with threshold clean_thr)
+        clean_matrix = bundles_distances_mdf(model_cluster_map.refdata,
+                                             closer_streamlines)
 
-    clean_matrix[clean_matrix > clean_thr] = np.inf
+        clean_matrix[clean_matrix > clean_thr] = np.inf
+        mins = np.min(clean_matrix, axis=0)
 
-    mins = np.min(clean_matrix, axis=0)
+        clean_indices = list(np.where(mins != np.inf)[0])
 
-    clean_indices = list(np.where(mins != np.inf)[0])
-
-    # Clean indices refer to the streamlines in closer_streamlines. Each
-    # closer_streamline has a related element in close_indices, for which the
-    # value is the index of the original streamline in the
-    # submission_cluster_map.
-    final_selected_indices = [close_indices[idx] for idx in clean_indices]
+        # Clean indices refer to the streamlines in closer_streamlines. Each
+        # closer_streamline has a related element in close_indices, for which the
+        # value is the index of the original streamline in the
+        # submission_cluster_map.
+        final_selected_indices = [close_indices[idx] for idx in clean_indices]
+    else:
+        final_selected_indices = []
 
     return final_selected_indices
 
@@ -120,6 +121,7 @@ def auto_extract_VCs(sft, ref_bundles):
     # Need to bookkeep because we chunk for big datasets
     processed_strl_count = 0
     chunk_it = 0
+    nb_chunks = len(sft.streamlines) / CHUNK_SIZE
 
     nb_bundles = len(ref_bundles)
 
@@ -127,7 +129,7 @@ def auto_extract_VCs(sft, ref_bundles):
 
     # Start loop here for big datasets
     while processed_strl_count < len(sft.streamlines):
-        logging.debug("Starting chunk: {0}".format(chunk_it))
+        logging.debug("Starting chunk: {} / {}".format(chunk_it, nb_chunks))
 
         strl_chunk = sft.streamlines[chunk_it * CHUNK_SIZE:
                                      (chunk_it + 1) * CHUNK_SIZE]
@@ -148,6 +150,7 @@ def auto_extract_VCs(sft, ref_bundles):
         logging.debug("Starting VC identification through auto_extract")
 
         for bundle_idx, ref_bundle in enumerate(ref_bundles):
+            logging.debug("-Bundle {}".format(ref_bundle['name']))
             # The selected indices are from [0, len(strl_chunk)]
             selected_streamlines_indices = auto_extract(
                 ref_bundle['cluster_map'], chunk_cluster_map,

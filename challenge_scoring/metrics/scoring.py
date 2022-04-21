@@ -162,8 +162,6 @@ def score_submission(streamlines_fname,
     sft.to_vox()
     sft.to_center()
 
-    full_strl = sft.streamlines
-
     # Extract VCs and VBs, compute OL, OR, f1 for each.
     logging.info("Starting VC, VB scoring")
     VC_indices, found_vbs_info = auto_extract_VCs(sft, ref_bundles)
@@ -177,7 +175,7 @@ def score_submission(streamlines_fname,
 
     logging.info("Starting IC, IB scoring")
 
-    total_strl_count = len(full_strl)
+    total_strl_count = len(sft.streamlines)
     candidate_ic_strl_indices = sorted(
         set(range(total_strl_count)) - VC_indices)
 
@@ -189,7 +187,7 @@ def score_submission(streamlines_fname,
 
     # Filter streamlines that are too short, consider them as NC
     for idx in candidate_ic_strl_indices:
-        if slength(full_strl[idx]) >= length_thres:
+        if slength(sft.streamlines[idx]) >= length_thres:
             candidate_ic_indices.append(idx)
         else:
             rejected_indices.append(idx)
