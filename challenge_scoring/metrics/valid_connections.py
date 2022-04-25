@@ -108,24 +108,19 @@ def auto_extract_VCs(sft, ref_bundles):
         Dict with bundle names as keys and, for each, a sub-dict with keys
         'nb_streamlines' and 'streamlines_indices'.
     """
-
     # IMPORTANT. Quickbundles must be computed from center
     sft.to_vox()
     sft.to_center()
 
-    VC_idx = set()
-
+    nb_bundles = len(ref_bundles)
     found_vbs_info = {}
-    for bundle in ref_bundles:
-        found_vbs_info[bundle['name']] = {'nb_streamlines': 0,
-                                          'streamlines_indices': set()}
 
-    # Need to bookkeep because we chunk for big datasets
+    # Initializing bookkeep variables, updated after each chunk.
+    vb_nb_streamlines = np.zeros(nb_bundles)
+    vb_strl_indices = [[] for _ in range(nb_bundles)]
     processed_strl_count = 0
     chunk_it = 0
     nb_chunks = int(np.ceil(len(sft.streamlines) / CHUNK_SIZE))
-
-    nb_bundles = len(ref_bundles)
 
     qb = QuickBundles(threshold=20, metric=AveragePointwiseEuclideanMetric())
 
@@ -138,7 +133,7 @@ def auto_extract_VCs(sft, ref_bundles):
                                      (chunk_it + 1) * CHUNK_SIZE]
 
         processed_strl_count += len(strl_chunk)
-        cur_chunk_VC_idx = set()
+        cur_chunk_VC_idx = []
 
         # Already resample and run quickbundles on the submission chunk,
         # to avoid doing it at every call of auto_extract
@@ -152,29 +147,38 @@ def auto_extract_VCs(sft, ref_bundles):
 
         for bundle_idx, ref_bundle in enumerate(ref_bundles):
             # The selected indices are from [0, len(strl_chunk)]
-            selected_streamlines_indices = auto_extract(
+            selected_strl_ind = auto_extract(
                 ref_bundle['cluster_map'], chunk_cluster_map,
                 clean_thr=ref_bundle['threshold'])
 
             # Remove duplicates, when streamlines are assigned to multiple VBs.
-            selected_streamlines_indices = \
-                set(selected_streamlines_indices) - cur_chunk_VC_idx
-            cur_chunk_VC_idx |= selected_streamlines_indices
+            # This means they will only be included in the first bundle
+            # encountered, so bundle ordering is important for reproducibility
+            # Note. Also possible to use set() operations but then, can't be
+            # used as index.
+            selected_strl_ind = np.setdiff1d(selected_strl_ind,
+                                             cur_chunk_VC_idx)
+            cur_chunk_VC_idx.extend(selected_strl_ind)
 
-            nb_selected_streamlines = len(selected_streamlines_indices)
+            nb_selected_streamlines = len(selected_strl_ind)
 
-            if nb_selected_streamlines:
+            if nb_selected_streamlines > 0:
                 # Shift indices to match the real number of streamlines
                 global_select_strl_indices = \
-                    set([v + chunk_it * CHUNK_SIZE for v in
-                         selected_streamlines_indices])
-                vb_info = found_vbs_info.get(ref_bundle['name'])
-                vb_info['nb_streamlines'] += nb_selected_streamlines
-                vb_info['streamlines_indices'] |= global_select_strl_indices
-
-                VC_idx |= global_select_strl_indices
+                    [v + chunk_it * CHUNK_SIZE for v in selected_strl_ind]
+                vb_nb_streamlines[bundle_idx] += nb_selected_streamlines
+                vb_strl_indices[bundle_idx].extend(global_select_strl_indices)
 
         chunk_it += 1
+
+    VC_idx = np.concatenate(vb_strl_indices)
+
+    # Creating final dicts
+    for i, bundle in enumerate(ref_bundles):
+        found_vbs_info.update({
+            bundle['name']: {'nb_streamlines': vb_nb_streamlines[i],
+                             'streamlines_indices': vb_strl_indices[i]}
+        })
 
     # IMPORTANT. tract_counts_map must be computed from corner!
     sft.to_corner()
