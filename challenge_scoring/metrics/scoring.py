@@ -240,6 +240,7 @@ def score_submission(streamlines_fname,
         k: v['nb_streamlines']
         for k, v in found_vbs_info.items() if v['nb_streamlines'] > 0}
 
+    # Converting np.float to floats for json dumps
     scores = {'version': 2,
               'algo_version': 5,
               'VC': VC,
@@ -249,20 +250,23 @@ def score_submission(streamlines_fname,
               'IB': nb_ib,
               'streamlines_per_bundle': streamlines_per_bundle,
               'total_streamlines_count': total_strl_count,
-              'overlap_per_bundle': {k: v["overlap"]
+              'overlap_per_bundle': {k: float(v["overlap"])
                                      for k, v in found_vbs_info.items()},
-              'overreach_per_bundle': {k: v["overreach"]
+              'overreach_per_bundle': {k: float(v["overreach"])
                                        for k, v in found_vbs_info.items()},
               'overreach_norm_gt_per_bundle': {
                   k: v["overreach_norm"] for k, v in found_vbs_info.items()},
-              'f1_score_per_bundle': {k: v["f1_score"]
+              'f1_score_per_bundle': {k: float(v["f1_score"])
                                       for k, v in found_vbs_info.items()}}
 
     # Compute average bundle overlap, overreach and f1-score.
-    scores['mean_OL'] = np.mean(list(scores['overlap_per_bundle'].values()))
-    scores['mean_OR'] = np.mean(list(scores['overreach_per_bundle'].values()))
-    scores['mean_ORn'] = np.mean(
-        list(scores['overreach_norm_gt_per_bundle'].values()))
-    scores['mean_F1'] = np.mean(list(scores['f1_score_per_bundle'].values()))
+    scores['mean_OL'] = float(
+        np.mean(list(scores['overlap_per_bundle'].values())))
+    scores['mean_OR'] = float(
+        np.mean(list(scores['overreach_per_bundle'].values())))
+    scores['mean_ORn'] = float(
+        np.mean(list(scores['overreach_norm_gt_per_bundle'].values())))
+    scores['mean_F1'] = float(
+        np.mean(list(scores['f1_score_per_bundle'].values())))
 
     return scores
