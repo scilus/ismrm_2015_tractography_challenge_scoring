@@ -114,7 +114,7 @@ def auto_extract_VCs(sft, ref_bundles):
     found_vbs_info = {}
 
     # Initializing bookkeep variables, updated after each chunk.
-    vb_nb_streamlines = np.zeros(nb_bundles)
+    vb_nb_streamlines = np.zeros(nb_bundles, dtype=np.int8)
     vb_strl_indices = [[] for _ in range(nb_bundles)]
     processed_strl_count = 0
     chunk_it = 0

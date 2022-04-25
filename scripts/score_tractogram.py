@@ -155,6 +155,7 @@ def main():
                               args.out_tract_type, args.verbose)
 
     if scores is not None:
+        print("Saving results in {}".format(scores_filename))
         save_results(scores_filename, scores)
 
 
