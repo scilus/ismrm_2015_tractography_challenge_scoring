@@ -4,7 +4,6 @@
 from __future__ import division
 
 import logging
-from itertools import chain
 
 from dipy.io.stateful_tractogram import StatefulTractogram
 from dipy.segment.clustering import QuickBundles
@@ -14,7 +13,8 @@ from dipy.tracking.streamline import set_number_of_points
 import numpy as np
 
 from challenge_scoring import NB_POINTS_RESAMPLE
-from challenge_scoring.metrics.bundle_coverage import compute_bundle_coverage_scores
+from challenge_scoring.metrics.bundle_coverage import \
+    compute_bundle_coverage_scores
 
 # todo. See if this could be bigger nowadays.
 CHUNK_SIZE = 10000
@@ -62,11 +62,9 @@ def auto_extract(model_cluster_map, submission_cluster_map,
     if len(close_clusters_ind) > 0:
         close_clusters_strl_indices = \
             [submission_cluster_map[i].indices for i in close_clusters_ind]
-        close_clusters_strl = \
-            [submission_cluster_map[i] for i in close_clusters_ind]
-
-        close_str_indices = list(chain(*close_clusters_strl_indices))
-        close_strl = list(chain(*close_clusters_strl))
+        close_strl_indices = np.concatenate(close_clusters_strl_indices)
+        close_strl = [submission_cluster_map.refdata[i] for i in
+                      close_strl_indices]
 
         # Final extraction of VB amongst close clusters.
         # (comparing to streamlines with threshold clean_thr)
@@ -76,13 +74,13 @@ def auto_extract(model_cluster_map, submission_cluster_map,
         clean_matrix[clean_matrix > clean_thr] = np.inf
         mins = np.min(clean_matrix, axis=0)
 
-        clean_indices = list(np.where(mins != np.inf)[0])
+        clean_indices = mins != np.inf
 
         # Clean indices refer to the streamlines in closer_streamlines. Each
-        # closer_streamline has a related element in close_indices, for which the
-        # value is the index of the original streamline in the
+        # closer_streamline has a related element in close_indices, for which
+        # the value is the index of the original streamline in the
         # submission_cluster_map.
-        final_selected_indices = [close_str_indices[idx] for idx in clean_indices]
+        final_selected_indices = close_strl_indices[clean_indices]
     else:
         final_selected_indices = []
 
@@ -184,6 +182,7 @@ def auto_extract_VCs(sft, ref_bundles):
     sft.to_corner()
 
     # Compute bundle overlap, overreach and f1_scores and update found_vbs_info
+    logging.debug("Computing overlap / overreach of found bundles")
     for bundle_idx, ref_bundle in enumerate(ref_bundles):
         bundle_name = ref_bundle["name"]
         bundle_mask = ref_bundle["mask"]
