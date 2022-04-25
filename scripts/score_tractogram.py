@@ -63,6 +63,9 @@ def build_args_parser():
                    help='save one file containing all ICs')
     p.add_argument('--save_full_nc', action='store_true',
                    help='save one file containing all NCs')
+    p.add_argument('--compute_ic_ib', action='store_true',
+                   help="Segment rejected streamlines into NC + IC.\n"
+                        "Else, all non-vb streamlines are stored as NC.")
     p.add_argument('--save_ib', action='store_true',
                    help='save IB independently.')
     p.add_argument('--save_vb', action='store_true',
@@ -146,6 +149,7 @@ def main():
                               args.save_full_vc,
                               args.save_full_ic,
                               args.save_full_nc,
+                              args.compute_ic_ib,
                               args.save_ib, args.save_vb,
                               segments_dir, base_name,
                               args.out_tract_type, args.verbose)

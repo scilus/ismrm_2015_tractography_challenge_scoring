@@ -78,6 +78,7 @@ def score_submission(streamlines_fname,
                      save_full_vc=False,
                      save_full_ic=False,
                      save_full_nc=False,
+                     compute_ic_ib=False,
                      save_IBs=False,
                      save_VBs=False,
                      segmented_out_dir='',
@@ -112,6 +113,8 @@ def score_submission(streamlines_fname,
         indicates if the full set of IC will be saved in an individual file.
     save_full_nc : bool
         indicates if the full set of NC will be saved in an individual file.
+    compute_ic_ib:
+        segment IC results into IB.
     save_IBs : bool
         indicates if the invalid bundles will be saved in individual file for
         each IB.
@@ -161,6 +164,7 @@ def score_submission(streamlines_fname,
                           bbox_valid_check=False, trk_header_check=False)
     sft.to_vox()
     sft.to_center()
+    total_strl_count = len(sft.streamlines)
 
     # Extract VCs and VBs, compute OL, OR, f1 for each.
     logging.info("Starting VC, VB scoring")
@@ -173,57 +177,61 @@ def score_submission(streamlines_fname,
                                save_vbs=save_VBs,
                                save_full_vc=save_full_vc)
 
-    logging.info("Starting IC, IB scoring")
+    candidate_ic_strl_indices = np.setdiff1d(range(total_strl_count),
+                                             VC_indices)
+    if compute_ic_ib:
+        logging.info("Starting IC, IB scoring")
 
-    total_strl_count = len(sft.streamlines)
-    candidate_ic_strl_indices = sorted(
-        set(range(total_strl_count)) - VC_indices)
+        candidate_ic_indices = []
+        rejected_indices = []
 
-    candidate_ic_indices = []
-    rejected_indices = []
+        # Chosen from GT dataset
+        length_thres = 35.
 
-    # Chosen from GT dataset
-    length_thres = 35.
+        # Filter streamlines that are too short, consider them as NC
+        for idx in candidate_ic_strl_indices:
+            if slength(sft.streamlines[idx]) >= length_thres:
+                candidate_ic_indices.append(idx)
+            else:
+                rejected_indices.append(idx)
 
-    # Filter streamlines that are too short, consider them as NC
-    for idx in candidate_ic_strl_indices:
-        if slength(sft.streamlines[idx]) >= length_thres:
-            candidate_ic_indices.append(idx)
-        else:
-            rejected_indices.append(idx)
+        logging.debug('Found {} candidate IC'
+                      .format(len(candidate_ic_indices)))
+        logging.debug('Found {} streamlines that were too short'
+                      .format(len(rejected_indices)))
 
-    logging.debug('Found {} candidate IC'.format(
-        len(candidate_ic_indices)))
-    logging.debug('Found {} streamlines that were too short'.format(
-        len(rejected_indices)))
+        ic_counts = 0
+        nb_ib = 0
 
-    ic_counts = 0
-    nb_ib = 0
+        if len(candidate_ic_indices):
+            additional_rejected_indices, ic_counts, nb_ib = \
+                group_and_assign_ibs(sft, candidate_ic_indices,  ROIs,
+                                     save_IBs, save_full_ic, segmented_out_dir,
+                                     segmented_base_name, ref_anat_fname,
+                                     out_tract_type)
 
-    if len(candidate_ic_indices):
-        additional_rejected_indices, ic_counts, nb_ib = group_and_assign_ibs(
-            sft, candidate_ic_indices,
-            ROIs, save_IBs, save_full_ic,
-            segmented_out_dir,
-            segmented_base_name,
-            ref_anat_fname,
-            out_tract_type)
+            rejected_indices.extend(additional_rejected_indices)
 
-        rejected_indices.extend(additional_rejected_indices)
+        if ic_counts != len(candidate_ic_strl_indices) - len(rejected_indices):
+            raise ValueError("Some streamlines were not correctly assigned to "
+                             "NC")
 
-    if ic_counts != len(candidate_ic_strl_indices) - len(rejected_indices):
-        raise ValueError("Some streamlines were not correctly assigned to NC")
+        if len(rejected_indices) > 0 and save_full_nc:
+            out_nc_fname = os.path.join(
+                segmented_out_dir,
+                '{}_NC.{}'.format(segmented_base_name, out_tract_type))
 
-    if len(rejected_indices) > 0 and save_full_nc:
-        out_nc_fname = os.path.join(segmented_out_dir,
-                                    '{}_NC.{}'.format(
-                                        segmented_base_name, out_tract_type))
-        rejected_sft = sft[rejected_indices]
-        save_tractogram(rejected_sft, out_nc_fname)
+            save_tractogram(sft[rejected_indices], out_nc_fname)
 
+        IC = len(candidate_ic_strl_indices) - len(rejected_indices)
+    else:
+        IC = 0
+        nb_ib = 0
+        rejected_indices = candidate_ic_strl_indices
+
+    logging.debug("Preparing summary of results")
     VC /= total_strl_count
-    IC = (len(candidate_ic_strl_indices) -
-          len(rejected_indices)) / total_strl_count
+    IC /= total_strl_count
     NC = len(rejected_indices) / total_strl_count
 
     nb_VB_found = [v['nb_streamlines'] > 0 for k,
@@ -232,26 +240,23 @@ def score_submission(streamlines_fname,
         k: v['nb_streamlines']
         for k, v in found_vbs_info.items() if v['nb_streamlines'] > 0}
 
-    scores = {}
-    scores['version'] = 2
-    scores['algo_version'] = 5
-    scores['VC'] = VC
-    scores['IC'] = IC
-    scores['NC'] = NC
-    scores['VB'] = nb_VB_found
-    scores['IB'] = nb_ib
-    scores['streamlines_per_bundle'] = streamlines_per_bundle
-    scores['total_streamlines_count'] = total_strl_count
-
-    # Get bundle overlap, overreach and f1-score for each bundle.
-    scores['overlap_per_bundle'] = {k: v["overlap"]
-                                    for k, v in found_vbs_info.items()}
-    scores['overreach_per_bundle'] = {k: v["overreach"]
-                                      for k, v in found_vbs_info.items()}
-    scores['overreach_norm_gt_per_bundle'] = {
-        k: v["overreach_norm"] for k, v in found_vbs_info.items()}
-    scores['f1_score_per_bundle'] = {k: v["f1_score"]
-                                     for k, v in found_vbs_info.items()}
+    scores = {'version': 2,
+              'algo_version': 5,
+              'VC': VC,
+              'IC': IC,
+              'NC': NC,
+              'VB': nb_VB_found,
+              'IB': nb_ib,
+              'streamlines_per_bundle': streamlines_per_bundle,
+              'total_streamlines_count': total_strl_count,
+              'overlap_per_bundle': {k: v["overlap"]
+                                     for k, v in found_vbs_info.items()},
+              'overreach_per_bundle': {k: v["overreach"]
+                                       for k, v in found_vbs_info.items()},
+              'overreach_norm_gt_per_bundle': {
+                  k: v["overreach_norm"] for k, v in found_vbs_info.items()},
+              'f1_score_per_bundle': {k: v["f1_score"]
+                                      for k, v in found_vbs_info.items()}}
 
     # Compute average bundle overlap, overreach and f1-score.
     scores['mean_OL'] = np.mean(list(scores['overlap_per_bundle'].values()))
