@@ -125,7 +125,8 @@ def auto_extract_VCs(sft, ref_bundles):
     # Start loop here for big datasets
     logging.debug("Starting VC identification through auto_extract")
     while processed_strl_count < len(sft.streamlines):
-        logging.debug("Starting chunk: {} / {}".format(chunk_it, nb_chunks))
+        logging.debug("Starting chunk: {} / {}"
+                      .format(chunk_it + 1, nb_chunks))
 
         strl_chunk = sft.streamlines[chunk_it * CHUNK_SIZE:
                                      (chunk_it + 1) * CHUNK_SIZE]

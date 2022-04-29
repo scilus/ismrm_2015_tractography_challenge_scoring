@@ -122,8 +122,7 @@ def main():
         base_name = os.path.splitext(os.path.basename(tractogram))[0]
 
         segmented_files = glob.glob(os.path.join(
-            segments_dir, '{}*.{}'.format(
-                base_name, args.out_tract_type)))
+            segments_dir, '{}*.{}'.format(base_name, args.out_tract_type)))
 
     if score_exists or len(segmented_files):
         if not args.force:
