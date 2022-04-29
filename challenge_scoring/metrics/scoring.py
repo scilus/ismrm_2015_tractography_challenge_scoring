@@ -216,23 +216,20 @@ def score_submission(streamlines_fname,
             raise ValueError("Some streamlines were not correctly assigned to "
                              "NC")
 
-        if len(rejected_indices) > 0 and save_full_nc:
-            out_nc_fname = os.path.join(
-                segmented_out_dir,
-                '{}_NC.{}'.format(segmented_base_name, out_tract_type))
-
-            save_tractogram(sft[rejected_indices], out_nc_fname)
-
         IC = len(candidate_ic_strl_indices) - len(rejected_indices)
     else:
         IC = 0
         nb_ib = 0
         rejected_indices = candidate_ic_strl_indices
 
+    if len(rejected_indices) > 0 and save_full_nc:
+        out_nc_fname = os.path.join(
+            segmented_out_dir,
+            '{}_NC.{}'.format(segmented_base_name, out_tract_type))
+
+        save_tractogram(sft[rejected_indices], out_nc_fname)
+
     logging.debug("Preparing summary of results")
-    VC /= total_strl_count
-    IC /= total_strl_count
-    NC = len(rejected_indices) / total_strl_count
 
     nb_VB_found = [v['nb_streamlines'] > 0 for k,
                    v in found_vbs_info.items()].count(True)
@@ -241,11 +238,15 @@ def score_submission(streamlines_fname,
         for k, v in found_vbs_info.items() if v['nb_streamlines'] > 0}
 
     # Converting np.float to floats for json dumps
+    NC = len(rejected_indices)
     scores = {'version': 2,
               'algo_version': 5,
               'VC': VC,
+              'VC_pct': VC / total_strl_count,
               'IC': IC,
+              'IC_pct': IC / total_strl_count,
               'NC': NC,
+              'NC_pct':  NC / total_strl_count,
               'VB': nb_VB_found,
               'IB': nb_ib,
               'streamlines_per_bundle': streamlines_per_bundle,
