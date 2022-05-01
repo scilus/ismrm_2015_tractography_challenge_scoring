@@ -99,10 +99,36 @@ def get_closest_roi_pairs_for_all_streamlines(streamlines, rois):
     return closest_rois_pairs
 
 
-def group_and_assign_ibs(tractogram, candidate_ids, ROIs,
+def group_and_assign_ibs(sft, candidate_ids, ROIs,
                          save_ibs, save_full_ic,
                          out_segmented_dir, base_name,
                          ref_anat_fname, out_tract_type):
+    """
+    Uses Quickbundles to segment non-VC streamlines into clusters. Groups
+    results based on closest ROI for each bundle's endpoints.
+
+    Parameters
+    ----------
+    sft: StatefulTractogram
+    candidate_ids: list[int]
+    ROIs: list[nibabel loaded ROIs]
+    save_ibs: bool
+    save_full_ic: bool
+    out_segmented_dir: str
+    base_name: str
+    ref_anat_fname: str
+    out_tract_type: str
+
+    Returns
+    -------
+    rejected_indices: list
+        Streamlines not included as IC (Clusters containing only a single
+        streamline).
+    ic_counts: int
+        The number of IC streamlines.
+    ib: int
+        The number of IB bundles.
+    """
     ic_counts = 0
     ib_pairs = {}
 
@@ -117,7 +143,7 @@ def group_and_assign_ibs(tractogram, candidate_ids, ROIs,
 
     # TODO threshold on distance as arg for other datasets
     qb = QuickBundles(threshold=20., metric='MDF_12points')
-    candidate_streamlines = tractogram.streamlines[candidate_ids]
+    candidate_streamlines = sft.streamlines[candidate_ids]
     clusters = qb.cluster(candidate_streamlines)
 
     logging.debug("Found {} potential IB clusters".format(len(clusters)))
@@ -159,10 +185,9 @@ def group_and_assign_ibs(tractogram, candidate_ids, ROIs,
             rejected_indices.append(c.indices[0])
 
     if save_ibs or save_full_ic:
-        save_invalid_connections(ib_pairs, candidate_ids, tractogram,
+        save_invalid_connections(ib_pairs, candidate_ids, sft,
                                  clusters, out_segmented_dir,
                                  base_name,
-                                 ref_anat_fname,
                                  out_tract_type,
                                  save_full_ic=save_full_ic,
                                  save_ibs=save_ibs)
