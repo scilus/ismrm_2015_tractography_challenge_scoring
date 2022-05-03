@@ -17,7 +17,7 @@ from challenge_scoring.metrics.bundle_coverage import \
     compute_bundle_coverage_scores
 
 # todo. See if this could be bigger nowadays.
-CHUNK_SIZE = 10000
+CHUNK_SIZE = 5000
 
 
 def auto_extract(model_cluster_map, submission_cluster_map,

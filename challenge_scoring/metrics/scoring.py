@@ -227,7 +227,7 @@ def score_submission(streamlines_fname,
             segmented_out_dir,
             '{}_NC.{}'.format(segmented_base_name, out_tract_type))
 
-        save_tractogram(sft[rejected_indices], out_nc_fname)
+        save_tractogram(sft[rejected_indices], out_nc_fname, bbox_valid_check=False)
 
     logging.debug("Preparing summary of results")
 

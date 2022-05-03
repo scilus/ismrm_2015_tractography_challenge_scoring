@@ -46,29 +46,6 @@ def find_closest_region(points, rois):
     return (closest_region_names, min_global_dists)
 
 
-def get_closest_roi_pairs_for_bundle(streamlines, rois):
-    # Needs to be 2D for cdist
-    start_point = np.reshape(streamlines[0][0], (-1, 3))
-
-    closest_rois_pairs = []
-
-    for s in streamlines:
-        endpoints = np.vstack([s[0], s[-1]])
-        endpoints_dists = cdist(start_point, endpoints).flatten()
-
-        # Make sure we all start from the same "orientation" for streamlines,
-        # to try to get the same region as the first region
-        if endpoints_dists[0] > endpoints_dists[1]:
-            endpoints = np.vstack([s[-1], s[0]])
-
-        closest_region_names, min_dists = find_closest_region(endpoints, rois)
-        closest_rois_pairs.append(tuple(closest_region_names))
-
-    occurences = Counter(closest_rois_pairs)
-
-    return occurences.most_common(1)[0][0]
-
-
 def get_closest_roi_pairs_for_all_streamlines(streamlines, rois):
     """
     Find the closest pair of ROIs from the endpoints of each provided
