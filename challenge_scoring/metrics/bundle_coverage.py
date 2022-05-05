@@ -6,7 +6,7 @@ import numpy as np
 
 
 from challenge_scoring.tractanalysis.robust_streamlines_metrics \
-    import compute_robust_tract_counts_map
+    import compute_tract_counts_map
 
 
 def _compute_f1_score(overlap, overreach):
@@ -49,7 +49,7 @@ def _create_binary_map(sft, ref_img):
     # from scilpy.tractanalysis.streamlines_metrics import
     #   compute_tract_counts_map
     # bundles_voxels = compute_tract_counts_map(sft.streamlines, ref)
-    sl_map = compute_robust_tract_counts_map(sft.streamlines, ref_img.shape)
+    sl_map = compute_tract_counts_map(sft.streamlines, ref_img.shape)
 
     return (sl_map > 0).astype(np.int16)
 
