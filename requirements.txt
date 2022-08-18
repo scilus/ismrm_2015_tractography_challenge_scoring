@@ -1,6 +1,13 @@
-setuptools==2.2
-numpy==1.11.2
-scipy==0.18.1
-nibabel==2.1.0
-Cython==0.25.2
-dipy==0.11.0
+async-timeout==4.0.2
+asynctest==0.13.0
+attrs==21.4.0
+cached-property==1.5.2
+Cython==0.29.*
+dipy==1.4.1
+h5py==2.10.*
+kiwisolver==1.0.*
+nibabel==3.0.*
+numpy==1.21.*
+packaging==21.3  # Necessary for dipy
+python-dateutil==2.7.*
+scipy==1.4.*

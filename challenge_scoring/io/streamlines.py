@@ -3,201 +3,116 @@
 
 import os
 
-import nibabel as nb
-import numpy as np
-from numpy import linalg
-from numpy.lib.index_tricks import c_
-import tractconverter as tc
-from tractconverter.formats.tck import TCK
+from dipy.io.streamline import save_tractogram
 
 
-def format_needs_orientation(tract_fname):
-    tracts_format = tc.detect_format(tract_fname)
-    tracts_file = tracts_format(tract_fname)
+def save_valid_connections(extracted_vb_info, sft,
+                           segmented_out_dir, basename,
+                           out_tract_type, save_vbs=False, save_full_vc=False):
+    """
+    Loops on extracted VB and saves them.
 
-    if isinstance(tracts_file, tc.formats.vtk.VTK):
-        return True
-
-    return False
-
-
-def guess_orientation(tract_fname):
-    tracts_format = tc.detect_format(tract_fname)
-    tracts_file = tracts_format(tract_fname)
-
-    if isinstance(tracts_file, tc.formats.tck.TCK):
-        return 'RAS'
-
-    return 'Unknown'
-
-
-def _get_tracts_over_grid(tract_fname, ref_anat_fname, tract_attributes,
-                           start_at_corner=True):
-    # TODO move to only get the attribute
-    # Tract_attributes is a dictionary containing various information
-    # about a dataset. Currently using:
-    # - "orientation" (should be LPS or RAS)
-    tracts_format = tc.detect_format(tract_fname)
-    tracts_file = tracts_format(tract_fname)
-
-    # Get information on the supporting anatomy
-    ref_img = nb.load(ref_anat_fname)
-
-    index_to_world_affine = ref_img.get_header().get_best_affine()
-
-    if isinstance(tracts_file, tc.formats.vtk.VTK):
-        # For VTK files, we need to check the orientation.
-        # Considered to be in world space. Use the orientation to correct the
-        # affine to bring back to voxel.
-        # Since the affine from Nifti goes from voxel to RAS, we need to
-        # *-1 the 2 first rows if we are in LPS.
-        orientation = tract_attributes.get("orientation", None)
-        if orientation is None:
-            raise AttributeError('Missing the "orientation" attribute for VTK')
-        elif orientation == "NOT_FOUND":
-            raise ValueError('Invalid value of "NOT_FOUND" for orientation')
-        elif orientation == "LPS":
-            index_to_world_affine[0,:] *= -1.0
-            index_to_world_affine[1,:] *= -1.0
-
-    # Transposed for efficient computations later on.
-    index_to_world_affine = index_to_world_affine.T.astype('<f4')
-    world_to_index_affine = linalg.inv(index_to_world_affine)
-
-    # Load tracts
-    if isinstance(tracts_file, tc.formats.tck.TCK)\
-        or isinstance(tracts_file, tc.formats.vtk.VTK):
-        if start_at_corner:
-            shift = 0.5
-        else:
-            shift = 0.0
-
-        for s in tracts_file:
-            transformed_s = np.dot(c_[s, np.ones([s.shape[0], 1], dtype='<f4')],
-                                   world_to_index_affine)[:, :-1] + shift
-            yield transformed_s
-    elif isinstance(tracts_file, tc.formats.trk.TRK):
-         # Use nb.trackvis to read directly in correct space
-         # TODO this should be made more robust, using
-         # all fields in header.
-         # Currently, load in rasmm space, and then bring back to LPS vox
-        try:
-            streamlines, _ = nb.trackvis.read(tract_fname,
-                                              as_generator=True,
-                                              points_space='rasmm')
-        except nb.trackvis.HeaderError as er:
-            print(er)
-            raise ValueError("\n------ ERROR ------\n\n" +\
-                  "TrackVis header is malformed or incomplete.\n" +\
-                  "Please make sure all fields are correctly set.\n\n" +\
-                  "The error message reported by Nibabel was:\n" +\
-                  str(er))
-
-        if start_at_corner:
-            shift = 0.0
-        else:
-            shift = 0.5
-
-        for s in streamlines:
-            transformed_s = np.dot(c_[s[0], np.ones([s[0].shape[0], 1], dtype='<f4')],
-                                   world_to_index_affine)[:, :-1] + shift
-            yield transformed_s
-
-
-def get_tracts_voxel_space(tract_fname, ref_anat_fname, tract_attributes):
-    return _get_tracts_over_grid(tract_fname, ref_anat_fname, tract_attributes,
-                                 True)
-
-
-def get_tracts_voxel_space_for_dipy(tract_fname, ref_anat_fname, tract_attributes):
-    return _get_tracts_over_grid(tract_fname, ref_anat_fname, tract_attributes,
-                                 False)
-
-
-def save_tracts_tck_from_dipy_voxel_space(tract_outobj, ref_anat_fname,
-                                          tracts):
-    # TODO validate that tract_outobj is a TCK file.
-    # Get information on the supporting anatomy
-    ref_img = nb.load(ref_anat_fname)
-
-    index_to_world_affine = ref_img.get_header().get_best_affine()
-
-    # Transposed for efficient computations later on.
-    index_to_world_affine = index_to_world_affine.T.astype('<f4')
-
-    # Do not shift, because we save as TCK, and dipy expect shifted tracts.
-    transformed = [np.dot(c_[s, np.ones([s.shape[0], 1], dtype='<f4')],
-                          index_to_world_affine)[:, :-1] for s in tracts]
-
-    tract_outobj += transformed
-
-
-def save_valid_connections(extracted_vb_info, streamlines,
-                           segmented_out_dir, basename, ref_anat_fname,
-                           save_vbs=False, save_full_vc=False):
+    Parameters
+    ----------
+    extracted_vb_info: dict
+        Keys are the bundle names, values are a dict with 'nb_streamlines' and
+        'streamlines_indices'.
+    sft: StatefulTractogram
+        Total submission sft.
+    segmented_out_dir: str
+        Directory.
+    basename: str
+        Prefix
+    out_tract_type: str
+        Extension (.trk or .tck)
+    save_vbs: bool
+    save_full_vc: bool
+    """
 
     if not save_vbs and not save_full_vc:
         return
 
-    full_vcs = []
-    for bundle_name, bundle_info in extracted_vb_info.iteritems():
+    full_vcs_idx = []
+
+    for bundle_name, bundle_info in extracted_vb_info.items():
         if bundle_info['nb_streamlines'] > 0:
             out_fname = os.path.join(segmented_out_dir, basename +
-                                     '_VB_{0}.tck'.format(bundle_name))
+                                     '_VB_{}.{}'.format(
+                                         bundle_name, out_tract_type))
 
-            vc_strl = [streamlines[idx]
-                       for idx in bundle_info['streamlines_indices']]
+            idx = list(bundle_info['streamlines_indices'])
 
             if save_full_vc:
-                full_vcs.extend(vc_strl)
+                full_vcs_idx.extend(idx)
 
             if save_vbs:
-                vb_f = TCK.create(out_fname)
-                save_tracts_tck_from_dipy_voxel_space(vb_f, ref_anat_fname, vc_strl)
+                sub_sft = sft[idx]
+                save_tractogram(sub_sft, out_fname)
 
-    if save_full_vc and len(full_vcs):
-        out_name = os.path.join(segmented_out_dir, basename + '_VC.tck')
-        tract_file = TCK.create(out_name)
-
-        save_tracts_tck_from_dipy_voxel_space(tract_file,
-                                              ref_anat_fname,
-                                              full_vcs)
+    if save_full_vc and len(full_vcs_idx):
+        out_name = os.path.join(
+            segmented_out_dir, basename + '_VC.{}'.format(out_tract_type))
+        sub_sft = sft[full_vcs_idx]
+        save_tractogram(sub_sft, out_name)
 
 
-def save_invalid_connections(ib_info, streamlines, ic_clusters,
-                             out_segmented_dir, base_name,
-                             ref_anat_fname,
+def save_invalid_connections(ib_info, id_invalids, sft, ic_clusters,
+                             out_segmented_dir, base_name, out_tract_type,
                              save_full_ic=False, save_ibs=False):
-    # ib_info is a dictionary containing all the pairs of ROIs that were
-    # assigned to some IB. The value of each element is a list containing the
-    # clusters indices of clusters that were assigned to that ROI pair.
+    """
+    Loops on extracted IB and saves them.
+
+    Parameters
+    ----------
+    ib_info: dict
+        Dictionary containing all the pairs of ROIs that were assigned to some
+        IB. The value of each element is a list containing the clusters indices
+        of clusters that were assigned to that ROI pair.
+    id_invalids: list
+        List of rejected streamlines.
+    sft: StatefulTractogram
+        Total submission sft
+    ic_clusters: list
+        List of indices for each IB.
+    out_segmented_dir: str
+        Path.
+    base_name: str
+        Prefix
+    out_tract_type:
+        Extension (.tck or .trk)
+    save_full_ic: bool
+    save_ibs: bool
+    """
+
+    # ib_info is a
     if not save_full_ic and not save_ibs:
         return
 
-    full_ic = []
-
-    for k, v in ib_info.iteritems():
-        out_strl = []
+    full_ic_idx = []
+    for k, v in ib_info.items():
+        idx = []
         for c_idx in v:
-            out_strl.extend([s for s in np.array(streamlines)[
-                ic_clusters[c_idx]['indices']]])
+            idx.extend(ic_clusters[c_idx].indices)
+
+        # Get idx from invalid streamline ids
+        invalid_idx = [id_invalids[i] for i in idx]
+
+        # Get actual invalid streamlines
+        ib_sft = sft[invalid_idx]
 
         if save_ibs:
             out_fname = os.path.join(out_segmented_dir,
                                      base_name +
-                                     '_IB_{0}_{1}.tck'.format(k[0], k[1]))
+                                     '_IB_{0}_{1}.{2}'.format(
+                                         k[0], k[1], out_tract_type))
 
-            ib_f = TCK.create(out_fname)
-            save_tracts_tck_from_dipy_voxel_space(ib_f, ref_anat_fname,
-                                                  out_strl)
+            save_tractogram(ib_sft, out_fname)
 
         if save_full_ic:
-            full_ic.extend(out_strl)
+            full_ic_idx.extend(invalid_idx)
 
-    if save_full_ic and len(full_ic):
-        out_name = os.path.join(out_segmented_dir, base_name + '_IC.tck')
-        tract_file = TCK.create(out_name)
-
-        save_tracts_tck_from_dipy_voxel_space(tract_file,
-                                              ref_anat_fname,
-                                              full_ic)
+    if save_full_ic and len(full_ic_idx):
+        out_name = os.path.join(out_segmented_dir,
+                                base_name + '_IC.{}'.format(out_tract_type))
+        ic_sft = sft[full_ic_idx]
+        save_tractogram(ic_sft, out_name)

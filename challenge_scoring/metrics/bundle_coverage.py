@@ -6,7 +6,7 @@ import numpy as np
 
 
 from challenge_scoring.tractanalysis.robust_streamlines_metrics \
-    import compute_robust_tract_counts_map
+    import compute_tract_counts_map
 
 
 def _compute_f1_score(overlap, overreach):
@@ -41,18 +41,20 @@ def _compute_overreach_normalize_gt(gt_data, candidate_data):
     return overreach_count / np.count_nonzero(gt_data)
 
 
-def _create_binary_map(tractogram, ref_img):
-    tractogram.to_world().apply_affine(np.linalg.inv(ref_img.affine))  # Send to voxel space.
-    translation = np.eye(4)
-    translation[:-1,-1] = 0.5
-    tractogram.apply_affine(translation) # Shift of half a voxel.
+def _create_binary_map(sft, ref_img):
+    sft.to_vox()
+    sft.to_corner()   # Important!
 
-    sl_map = compute_robust_tract_counts_map(tractogram.streamlines,
-                                             ref_img.shape)
+    # Other possibility: Seems to be the same.
+    # from scilpy.tractanalysis.streamlines_metrics import
+    #   compute_tract_counts_map
+    # bundles_voxels = compute_tract_counts_map(sft.streamlines, ref)
+    sl_map = compute_tract_counts_map(sft.streamlines, ref_img.shape)
+
     return (sl_map > 0).astype(np.int16)
 
 
-def compute_bundle_coverage_scores(tractogram, ground_truth_mask):
+def compute_bundle_coverage_scores(sft, ground_truth_mask):
     """ Computes scores related to bundle coverage.
 
     This function computes, for a given bundle, the bundle overlap (OL),
@@ -61,13 +63,13 @@ def compute_bundle_coverage_scores(tractogram, ground_truth_mask):
 
     Parameters
     ----------
-    tractogram : Tractogram object
+    sft: StatefulTractogram
         Streamlines to score.
     ground_truth_mask : `:class:Nifti1Image` object
         Mask of the ground truth bundle.
     """
     gt_data = ground_truth_mask.get_data()
-    candidate_data = _create_binary_map(tractogram, ground_truth_mask)
+    candidate_data = _create_binary_map(sft, ground_truth_mask)
     overlap = _compute_overlap(gt_data, candidate_data)
     overreach = _compute_overreach(gt_data, candidate_data)
     overreach_norm = _compute_overreach_normalize_gt(gt_data, candidate_data)

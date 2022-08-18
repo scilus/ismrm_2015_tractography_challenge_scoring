@@ -8,8 +8,9 @@ import logging
 import os
 import random
 
-import dipy.segment.quickbundles as qb
 import numpy as np
+
+from dipy.segment.clustering import QuickBundles
 from scipy.spatial.distance import cdist
 
 from challenge_scoring.io.streamlines import save_invalid_connections
@@ -45,37 +46,14 @@ def find_closest_region(points, rois):
     return (closest_region_names, min_global_dists)
 
 
-def get_closest_roi_pairs_for_bundle(streamlines, rois):
-    start_point = np.reshape(streamlines[0][0], (-1, 3)) # Needs to be 2D for cdist
-
-    closest_rois_pairs = []
-
-    for s in streamlines:
-        endpoints = np.vstack([s[0], s[-1]])
-        endpoints_dists = cdist(start_point, endpoints).flatten()
-
-        # Make sure we all start from the same "orientation" for streamlines,
-        # to try to get the same region as the first region
-        if endpoints_dists[0] > endpoints_dists[1]:
-            endpoints = np.vstack([s[-1], s[0]])
-
-        closest_region_names, min_dists = find_closest_region(endpoints, rois)
-        closest_rois_pairs.append(tuple(closest_region_names))
-
-    occurences = Counter(closest_rois_pairs)
-
-    return occurences.most_common(1)[0][0]
-
-
 def get_closest_roi_pairs_for_all_streamlines(streamlines, rois):
     """
     Find the closest pair of ROIs from the endpoints of each provided
     streamline.
-    
-    # TODO params
-    :param streamlines: 
-    :param rois: 
-    :return: 
+
+    :param streamlines: list of streamlines to assign rois to
+    :param rois: list of pairs of roi "names" and data
+    :return: list of pairs of the closest regions for each bundle head and tail
     """
 
     # Needs to be 2D for cdist
@@ -98,26 +76,52 @@ def get_closest_roi_pairs_for_all_streamlines(streamlines, rois):
     return closest_rois_pairs
 
 
-def group_and_assign_ibs(candidate_streamlines, ROIs,
+def group_and_assign_ibs(sft, candidate_ids, ROIs,
                          save_ibs, save_full_ic,
-                         out_segmented_dir, base_name, ref_anat_fname):
+                         out_segmented_dir, base_name,
+                         ref_anat_fname, out_tract_type):
+    """
+    Uses Quickbundles to segment non-VC streamlines into clusters. Groups
+    results based on closest ROI for each bundle's endpoints.
+
+    Parameters
+    ----------
+    sft: StatefulTractogram
+    candidate_ids: list[int]
+    ROIs: list[nibabel loaded ROIs]
+    save_ibs: bool
+    save_full_ic: bool
+    out_segmented_dir: str
+    base_name: str
+    ref_anat_fname: str
+    out_tract_type: str
+
+    Returns
+    -------
+    rejected_indices: list
+        Streamlines not included as IC (Clusters containing only a single
+        streamline).
+    ic_counts: int
+        The number of IC streamlines.
+    ib: int
+        The number of IB bundles.
+    """
     ic_counts = 0
     ib_pairs = {}
 
-    rejected_streamlines = []
+    rejected_indices = []
 
     # Start by clustering all the remaining potentiel IC using QB.
 
     # Fix seed to always generate the same output
     # Shuffle to try to reduce the ordering dependency for QB
     random.seed(0.2)
-    random.shuffle(candidate_streamlines)
+    random.shuffle(candidate_ids)
 
     # TODO threshold on distance as arg for other datasets
-    out_data = qb.QuickBundles(candidate_streamlines,
-                               dist_thr=20.,
-                               pts=12)
-    clusters = out_data.clusters()
+    qb = QuickBundles(threshold=20., metric='MDF_12points')
+    candidate_streamlines = sft.streamlines[candidate_ids]
+    clusters = qb.cluster(candidate_streamlines)
 
     logging.debug("Found {} potential IB clusters".format(len(clusters)))
 
@@ -125,17 +129,20 @@ def group_and_assign_ibs(candidate_streamlines, ROIs,
     # Is used in the get_closest_roi_pairs... function.
     rois_info = []
     for roi in ROIs:
-        rois_info.append((get_root_image_name(os.path.basename(roi.get_filename())),
-                          np.array(np.where(roi.get_data())).T))
+        rois_info.append((
+            get_root_image_name(os.path.basename(roi.get_filename())),
+            np.array(np.where(roi.get_data())).T))
 
-    all_ics_closest_pairs = get_closest_roi_pairs_for_all_streamlines(candidate_streamlines, rois_info)
+    all_ics_closest_pairs = get_closest_roi_pairs_for_all_streamlines(
+        candidate_streamlines, rois_info)
 
     for c_idx, c in enumerate(clusters):
-        closest_for_cluster = [all_ics_closest_pairs[i] for i in clusters[c]['indices']]
+        closest_for_cluster = [all_ics_closest_pairs[i]
+                               for i in c.indices]
 
         # Clusters containing only a single streamlines are rejected.
-        if len(clusters[c]['indices']) > 1:
-            ic_counts += len(clusters[c]['indices'])
+        if len(c.indices) > 1:
+            ic_counts += len(c.indices)
             occurences = Counter(closest_for_cluster)
 
             # TODO could be changed in future to allow an equality
@@ -152,14 +159,14 @@ def group_and_assign_ibs(candidate_streamlines, ROIs,
             else:
                 val.append(c_idx)
         else:
-            rejected_streamlines.append(candidate_streamlines[clusters[c]['indices'][0]])
+            rejected_indices.append(c.indices[0])
 
     if save_ibs or save_full_ic:
-        save_invalid_connections(ib_pairs, candidate_streamlines,
+        save_invalid_connections(ib_pairs, candidate_ids, sft,
                                  clusters, out_segmented_dir,
                                  base_name,
-                                 ref_anat_fname,
+                                 out_tract_type,
                                  save_full_ic=save_full_ic,
                                  save_ibs=save_ibs)
 
-    return rejected_streamlines, ic_counts, len(ib_pairs.keys())
+    return rejected_indices, ic_counts, len(ib_pairs.keys())
