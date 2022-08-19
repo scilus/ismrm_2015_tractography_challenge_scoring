@@ -42,7 +42,7 @@ Fetching the Ground Truth Dataset
 
 To be able to run the scoring system, a directory containing the ground
 truth dataset is needed. It can be downloaded from
-[the Tractometer website](http://www.tractometer.org/downloads/downloads/scoring_data_tractography_challenge.tar.gz).
+[the Tractometer website](http://www.tractometer.org/ismrm_2015_challenge/data).
 
 
 Scoring a tractogram
