@@ -87,7 +87,7 @@ def main():
     out_dir = args.out_dir
 
     if args.verbose:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger().setLevel(level=logging.DEBUG)
 
     if not os.path.isfile(tractogram):
         parser.error('"{0}" must be a file!'.format(tractogram))
