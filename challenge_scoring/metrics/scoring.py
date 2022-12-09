@@ -136,7 +136,7 @@ def score_submission(streamlines_fname,
         dictionnary containing a score for each metric
     """
     if verbose:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger().setLevel(level=logging.DEBUG)
         # Silencing SFT's logger if our logging is in DEBUG mode, because it
         # typically produces a lot of outputs!
         set_sft_logger_level('WARNING')
