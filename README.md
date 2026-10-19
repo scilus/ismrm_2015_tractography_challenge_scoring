@@ -11,6 +11,8 @@ paper is archived on Zenodo [![DOI](https://zenodo.org/badge/55703078.svg)](http
 Configuration and installation
 ------------------------------
 
+Installation works best with a python 3.7 environment.
+
 Make sure the "pip" version is recent enough. You can update it with
 
 ```bash
@@ -31,8 +33,7 @@ downloaded, go inside the ```ismrm_2015_tractography_challenge_scoring```
 directory, and run
 
 ```bash
-python setup.py build_ext --inplace
-python setup.py install
+pip install .
 ```
 
 Once those steps are all done, the system is configured.

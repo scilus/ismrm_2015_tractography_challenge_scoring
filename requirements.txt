@@ -4,6 +4,7 @@ attrs==21.4.0
 cached-property==1.5.2
 Cython==0.29.*
 dipy==1.4.1
+fury  # Necessary for dipy
 h5py==2.10.*
 kiwisolver==1.0.*
 nibabel==3.0.*
